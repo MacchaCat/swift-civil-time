@@ -45,7 +45,14 @@ struct FoundationOracleTests {
         #expect(mismatches.isEmpty, "\(mismatches)")
     }
 
-    @Test("Adding months clamps the same way Foundation does")
+    /// Only days 1–28 are compared, which never need clamping. Older
+    /// Foundation releases (seen on macOS 26, and in the swift-foundation
+    /// shipped with Swift 6.0–6.3 on Linux and Windows) clamp some
+    /// month-end dates to the wrong day when subtracting many months into
+    /// February: 2014-05-31 minus 339 months gives 1986-03-01 instead of
+    /// 1986-02-28. Clamping is checked against its definition in the core
+    /// tests instead.
+    @Test("Adding months agrees with Foundation")
     func addingMonths() {
         let gregorian = Self.gregorian
         var generator = SplitMix64(seed: 30)
@@ -55,6 +62,7 @@ struct FoundationOracleTests {
         for _ in 0..<20_000 {
             let start = PlainDate(daysSinceEpoch: Int.random(in: low...high, using: &generator))!
             let months = Int.random(in: -1200...1200, using: &generator)
+            guard start.day <= 28 else { continue }
             let ours = start.adding(months: months)
             let instant = Date(timeIntervalSince1970: TimeInterval(start.daysSinceEpoch) * 86_400)
             let theirs = gregorian.date(byAdding: .month, value: months, to: instant)!
