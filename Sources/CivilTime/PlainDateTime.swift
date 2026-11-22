@@ -124,18 +124,23 @@ extension PlainDateTime {
     /// t.adding(months: 1, hours: 3)   // 2024-03-01T01:00:00
     /// ```
     ///
+    /// The program stops with a runtime error if the result would be outside
+    /// ``min``…``max``. For amounts from untrusted input, use
+    /// ``checkedAdding(years:months:weeks:days:hours:minutes:seconds:nanoseconds:)``.
+    ///
     /// - Precondition: The result is between ``min`` and ``max``.
     @inlinable
     public func adding(
         years: Int = 0, months: Int = 0, weeks: Int = 0, days: Int = 0,
         hours: Int = 0, minutes: Int = 0, seconds: Int = 0, nanoseconds: Int = 0
     ) -> PlainDateTime {
-        var newDate = date.adding(years: years, months: months, weeks: weeks, days: days)
-        let offset = time._offset(hours: hours, minutes: minutes, seconds: seconds, nanoseconds: nanoseconds)
-        if offset.days != 0 {
-            newDate = newDate.adding(days: offset.days)
+        guard let result = checkedAdding(
+            years: years, months: months, weeks: weeks, days: days,
+            hours: hours, minutes: minutes, seconds: seconds, nanoseconds: nanoseconds
+        ) else {
+            preconditionFailure("PlainDateTime arithmetic is out of range")
         }
-        return PlainDateTime(date: newDate, time: PlainTime(_uncheckedNanosecondOfDay: offset.nanosecondOfDay))
+        return result
     }
 
     /// Returns the date-time moved by a ``DatePeriod``.
@@ -144,6 +149,37 @@ extension PlainDateTime {
     @inlinable
     public func adding(_ period: DatePeriod) -> PlainDateTime {
         PlainDateTime(date: date.adding(period), time: time)
+    }
+
+    /// Returns the date-time moved by calendar and clock amounts, or `nil` if
+    /// the result would be outside ``min``…``max``.
+    ///
+    /// This works exactly like
+    /// ``adding(years:months:weeks:days:hours:minutes:seconds:nanoseconds:)``
+    /// but never stops the program, so it is safe to use with amounts from
+    /// untrusted input.
+    @inlinable
+    public func checkedAdding(
+        years: Int = 0, months: Int = 0, weeks: Int = 0, days: Int = 0,
+        hours: Int = 0, minutes: Int = 0, seconds: Int = 0, nanoseconds: Int = 0
+    ) -> PlainDateTime? {
+        guard var newDate = date.checkedAdding(years: years, months: months, weeks: weeks, days: days)
+        else { return nil }
+        // Every component is reduced to whole days plus a remainder first, so
+        // this step cannot overflow.
+        let offset = time._offset(hours: hours, minutes: minutes, seconds: seconds, nanoseconds: nanoseconds)
+        if offset.days != 0 {
+            guard let moved = newDate.checkedAdding(days: offset.days) else { return nil }
+            newDate = moved
+        }
+        return PlainDateTime(date: newDate, time: PlainTime(_uncheckedNanosecondOfDay: offset.nanosecondOfDay))
+    }
+
+    /// Returns the date-time moved by a ``DatePeriod``, or `nil` if the result
+    /// would be outside ``min``…``max``. Safe to use with untrusted input.
+    @inlinable
+    public func checkedAdding(_ period: DatePeriod) -> PlainDateTime? {
+        date.checkedAdding(period).map { PlainDateTime(date: $0, time: time) }
     }
 }
 

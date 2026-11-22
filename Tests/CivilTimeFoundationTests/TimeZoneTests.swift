@@ -32,6 +32,23 @@ struct TimeZoneTests {
         #expect(PlainDateTime(utc("1969-12-31T23:59:59Z"), in: zone("UTC")) == dateTime(1969, 12, 31, 23, 59, 59))
     }
 
+    @Test("Dates from untrusted input convert without trapping")
+    func checkedConversions() {
+        let tokyo = zone("Asia/Tokyo")
+        for bad in [Date(timeIntervalSince1970: .infinity), Date(timeIntervalSince1970: -.infinity),
+                    Date(timeIntervalSince1970: .nan), Date(timeIntervalSince1970: 1e300),
+                    Date(timeIntervalSince1970: -1e300), Date(timeIntervalSince1970: 9.3e18),
+                    Date(timeIntervalSince1970: 1e15)] {
+            #expect(PlainDateTime(checking: bad, in: tokyo) == nil)
+            #expect(PlainDate(checking: bad, in: tokyo) == nil)
+            #expect(PlainTime(checking: bad, in: tokyo) == nil)
+        }
+        let instant = utc("2024-02-29T00:00:00Z")
+        #expect(PlainDateTime(checking: instant, in: tokyo) == dateTime(2024, 2, 29, 9))
+        #expect(PlainDate(checking: .distantFuture, in: tokyo) == PlainDate(.distantFuture, in: tokyo))
+        #expect(PlainDate(checking: .distantPast, in: tokyo) == PlainDate(.distantPast, in: tokyo))
+    }
+
     @Test("Fractional seconds survive the trip through Date to microsecond precision")
     func fractions() {
         let local = PlainDateTime(year: 2024, month: 2, day: 29, hour: 12, nanosecond: 123_456_000)!

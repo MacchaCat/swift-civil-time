@@ -296,21 +296,16 @@ extension PlainDate {
     ///
     /// Pass negative values to move backward.
     ///
+    /// The program stops with a runtime error, like integer overflow, if the
+    /// result would be outside ``min``…``max``. When the amounts come from
+    /// outside your program, such as a decoded ``DatePeriod``, use
+    /// ``checkedAdding(years:months:weeks:days:)`` instead.
+    ///
     /// - Precondition: The result is between ``min`` and ``max``.
     @inlinable
     public func adding(years: Int = 0, months: Int = 0, weeks: Int = 0, days: Int = 0) -> PlainDate {
-        var result = self
-        if years != 0 || months != 0 {
-            let (yearMonths, o1) = years.multipliedReportingOverflow(by: 12)
-            let (totalMonths, o2) = yearMonths.addingReportingOverflow(months)
-            precondition(!o1 && !o2, "PlainDate arithmetic is out of range")
-            result = result._addingMonths(totalMonths)
-        }
-        if weeks != 0 || days != 0 {
-            let (weekDays, o1) = weeks.multipliedReportingOverflow(by: 7)
-            let (totalDays, o2) = weekDays.addingReportingOverflow(days)
-            precondition(!o1 && !o2, "PlainDate arithmetic is out of range")
-            result = result._addingDays(totalDays)
+        guard let result = checkedAdding(years: years, months: months, weeks: weeks, days: days) else {
+            preconditionFailure("PlainDate arithmetic is out of range")
         }
         return result
     }
@@ -318,14 +313,52 @@ extension PlainDate {
     /// Returns the date moved by a ``DatePeriod``: years and months first,
     /// clamping the day to the end of the month, then days.
     ///
+    /// For a period from untrusted input, use ``checkedAdding(_:)``.
+    ///
     /// - Precondition: The result is between ``min`` and ``max``.
     @inlinable
     public func adding(_ period: DatePeriod) -> PlainDate {
         adding(years: period.years, months: period.months, days: period.days)
     }
 
+    /// Returns the date moved by a number of years, months, weeks and days,
+    /// or `nil` if the result would be outside ``min``…``max``.
+    ///
+    /// This works exactly like ``adding(years:months:weeks:days:)`` but never
+    /// stops the program, so it is safe to use with amounts from untrusted
+    /// input.
+    ///
+    /// ```swift
+    /// let period = try JSONDecoder().decode(DatePeriod.self, from: body)
+    /// guard let due = start.checkedAdding(period) else { throw BadRequest() }
+    /// ```
     @inlinable
-    func _addingDays(_ days: Int) -> PlainDate {
+    public func checkedAdding(years: Int = 0, months: Int = 0, weeks: Int = 0, days: Int = 0) -> PlainDate? {
+        var result = self
+        if years != 0 || months != 0 {
+            let (yearMonths, o1) = years.multipliedReportingOverflow(by: 12)
+            let (totalMonths, o2) = yearMonths.addingReportingOverflow(months)
+            guard !o1, !o2, let moved = result._checkedAddingMonths(totalMonths) else { return nil }
+            result = moved
+        }
+        if weeks != 0 || days != 0 {
+            let (weekDays, o1) = weeks.multipliedReportingOverflow(by: 7)
+            let (totalDays, o2) = weekDays.addingReportingOverflow(days)
+            guard !o1, !o2, let moved = result._checkedAddingDays(totalDays) else { return nil }
+            result = moved
+        }
+        return result
+    }
+
+    /// Returns the date moved by a ``DatePeriod``, or `nil` if the result would
+    /// be outside ``min``…``max``. Safe to use with untrusted input.
+    @inlinable
+    public func checkedAdding(_ period: DatePeriod) -> PlainDate? {
+        checkedAdding(years: period.years, months: period.months, days: period.days)
+    }
+
+    @inlinable
+    func _checkedAddingDays(_ days: Int) -> PlainDate? {
         // Fast path: stay inside the current month.
         if days > -32 && days < 32 {
             let newDay = day + days
@@ -334,21 +367,27 @@ extension PlainDate {
             }
         }
         let (target, overflow) = daysSinceEpoch.addingReportingOverflow(days)
-        guard !overflow, let result = PlainDate(daysSinceEpoch: target) else {
-            preconditionFailure("PlainDate arithmetic is out of range")
-        }
-        return result
+        guard !overflow else { return nil }
+        return PlainDate(daysSinceEpoch: target)
+    }
+
+    @inlinable
+    func _checkedAddingMonths(_ months: Int) -> PlainDate? {
+        let (index, overflow) = (year * 12 + (month - 1)).addingReportingOverflow(months)
+        guard !overflow else { return nil }
+        let newYear = CivilMath.floorDivide(index, 12)
+        let newMonth = CivilMath.floorModulo(index, 12) + 1
+        guard CivilMath.isValidYear(newYear) else { return nil }
+        let newDay = Swift.min(day, CivilMath.daysInMonth(year: newYear, month: newMonth))
+        return PlainDate(_uncheckedYear: newYear, month: newMonth, day: newDay)
     }
 
     @inlinable
     func _addingMonths(_ months: Int) -> PlainDate {
-        let (index, overflow) = (year * 12 + (month - 1)).addingReportingOverflow(months)
-        precondition(!overflow, "PlainDate arithmetic is out of range")
-        let newYear = CivilMath.floorDivide(index, 12)
-        let newMonth = CivilMath.floorModulo(index, 12) + 1
-        precondition(CivilMath.isValidYear(newYear), "PlainDate arithmetic is out of range")
-        let newDay = Swift.min(day, CivilMath.daysInMonth(year: newYear, month: newMonth))
-        return PlainDate(_uncheckedYear: newYear, month: newMonth, day: newDay)
+        guard let result = _checkedAddingMonths(months) else {
+            preconditionFailure("PlainDate arithmetic is out of range")
+        }
+        return result
     }
 
     /// The number of days from this date to `other`; negative if `other` is

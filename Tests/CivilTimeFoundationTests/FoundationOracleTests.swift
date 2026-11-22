@@ -103,6 +103,12 @@ struct DateComponentsTests {
         #expect(PlainDate(oneBC.dateComponents) == oneBC)
         #expect(PlainDate(DateComponents(era: 0, year: 44, month: 3, day: 15)) == PlainDate(year: -43, month: 3, day: 15))
 
+        // Untrusted components must not crash the conversion.
+        #expect(PlainDate(DateComponents(era: 0, year: Int.min, month: 1, day: 1)) == nil)
+        #expect(PlainDate(DateComponents(era: 0, year: Int.max, month: 1, day: 1)) == nil)
+        #expect(PlainDate(DateComponents(year: Int.max, month: Int.max, day: Int.max)) == nil)
+        #expect(PlainTime(DateComponents(hour: Int.max, minute: Int.min, second: Int.max, nanosecond: Int.min)) == nil)
+
         let t = PlainTime(hour: 9, minute: 30, second: 15, nanosecond: 5)!
         #expect(t.dateComponents == DateComponents(hour: 9, minute: 30, second: 15, nanosecond: 5))
         #expect(PlainTime(t.dateComponents) == t)

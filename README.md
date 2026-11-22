@@ -179,7 +179,10 @@ problem and its byte offset. `PlainDate(_:)` returns `nil`.
   seconds. Time zones live in `CivilTimeFoundation`, which uses the system's
   time-zone database through `TimeZone`.
 - **Out-of-range arithmetic traps**, like integer overflow. With a range of
-  two million years, this only happens with corrupt input.
+  two million years, this only happens with corrupt or hostile input, so for
+  amounts and instants that come from outside your program use the
+  non-trapping forms, which return `nil`: `checkedAdding(...)` and
+  `PlainDate(checking: date, in: zone)`. Parsing and decoding never trap.
 - **Small and fast.** `PlainDate` is 6 bytes and `PlainTime` is 8. The core
   has no dependencies, imports no Foundation, and does all calendar math with
   a few integer operations.

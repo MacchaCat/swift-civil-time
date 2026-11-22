@@ -64,17 +64,27 @@ public struct PlainYearMonth: Sendable, Hashable, BitwiseCopyable {
 
     /// Returns the year-month moved by a number of years and months.
     ///
+    /// For amounts from untrusted input, use ``checkedAdding(years:months:)``.
+    ///
     /// - Precondition: The result is within the supported years.
     @inlinable
     public func adding(years: Int = 0, months: Int = 0) -> PlainYearMonth {
-        let (yearMonths, o1) = years.multipliedReportingOverflow(by: 12)
-        let (delta, o2) = yearMonths.addingReportingOverflow(months)
-        let (index, o3) = _monthIndex.addingReportingOverflow(delta)
-        precondition(!(o1 || o2 || o3), "PlainYearMonth arithmetic is out of range")
-        guard let result = PlainYearMonth(_monthIndex: index) else {
+        guard let result = checkedAdding(years: years, months: months) else {
             preconditionFailure("PlainYearMonth arithmetic is out of range")
         }
         return result
+    }
+
+    /// Returns the year-month moved by a number of years and months, or `nil`
+    /// if the result would be outside the supported years. Safe to use with
+    /// untrusted input.
+    @inlinable
+    public func checkedAdding(years: Int = 0, months: Int = 0) -> PlainYearMonth? {
+        let (yearMonths, o1) = years.multipliedReportingOverflow(by: 12)
+        let (delta, o2) = yearMonths.addingReportingOverflow(months)
+        let (index, o3) = _monthIndex.addingReportingOverflow(delta)
+        guard !(o1 || o2 || o3) else { return nil }
+        return PlainYearMonth(_monthIndex: index)
     }
 
     /// The number of months from this month to `other`.

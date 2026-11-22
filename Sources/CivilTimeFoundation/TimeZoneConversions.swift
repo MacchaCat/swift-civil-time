@@ -15,12 +15,24 @@ extension PlainDateTime {
     /// nanosecond field is accurate to about a quarter of a microsecond.
     ///
     /// - Precondition: `date` is finite and its year in `timeZone` is within
-    ///   -999999…999999.
+    ///   -999999…999999. For a `Date` from untrusted input, use
+    ///   ``init(checking:in:)``.
     public init(_ date: Date, in timeZone: TimeZone) {
-        let (seconds, nanoseconds) = _secondsAndNanoseconds(of: date)
-        let offset = Int64(timeZone.secondsFromGMT(for: date))
-        guard let value = PlainDateTime(secondsSinceEpoch: seconds + offset, nanoseconds: nanoseconds) else {
+        guard let value = PlainDateTime(checking: date, in: timeZone) else {
             preconditionFailure("\(date) is outside the years PlainDateTime supports")
+        }
+        self = value
+    }
+
+    /// The date and time a wall clock in `timeZone` shows at the instant
+    /// `date`, or `nil` if `date` is not finite or falls outside the years
+    /// -999999…999999. Safe to use with untrusted input.
+    public init?(checking date: Date, in timeZone: TimeZone) {
+        guard let (seconds, nanoseconds) = _checkedSecondsAndNanoseconds(of: date) else { return nil }
+        let offset = Int64(timeZone.secondsFromGMT(for: date))
+        let (local, overflow) = seconds.addingReportingOverflow(offset)
+        guard !overflow, let value = PlainDateTime(secondsSinceEpoch: local, nanoseconds: nanoseconds) else {
+            return nil
         }
         self = value
     }
@@ -41,9 +53,18 @@ extension PlainDate {
     /// ```
     ///
     /// - Precondition: `date` is finite and its year in `timeZone` is within
-    ///   -999999…999999.
+    ///   -999999…999999. For a `Date` from untrusted input, use
+    ///   ``init(checking:in:)``.
     public init(_ date: Date, in timeZone: TimeZone) {
         self = PlainDateTime(date, in: timeZone).date
+    }
+
+    /// The calendar date in `timeZone` at the instant `date`, or `nil` if
+    /// `date` is not finite or falls outside the years -999999…999999. Safe
+    /// to use with untrusted input.
+    public init?(checking date: Date, in timeZone: TimeZone) {
+        guard let dateTime = PlainDateTime(checking: date, in: timeZone) else { return nil }
+        self = dateTime.date
     }
 
     /// Today's date in `timeZone`.
@@ -60,9 +81,18 @@ extension PlainTime {
     /// The time of day a wall clock in `timeZone` shows at the instant `date`.
     ///
     /// - Precondition: `date` is finite and its year in `timeZone` is within
-    ///   -999999…999999.
+    ///   -999999…999999. For a `Date` from untrusted input, use
+    ///   ``init(checking:in:)``.
     public init(_ date: Date, in timeZone: TimeZone) {
         self = PlainDateTime(date, in: timeZone).time
+    }
+
+    /// The time of day a wall clock in `timeZone` shows at the instant `date`,
+    /// or `nil` if `date` is not finite or falls outside the years
+    /// -999999…999999. Safe to use with untrusted input.
+    public init?(checking date: Date, in timeZone: TimeZone) {
+        guard let dateTime = PlainDateTime(checking: date, in: timeZone) else { return nil }
+        self = dateTime.time
     }
 
     /// The current time of day on a wall clock in `timeZone`.
@@ -238,18 +268,17 @@ extension PlainDate {
 let _secondsPerDay: Int64 = 86_400
 
 /// Splits a `Date` into whole seconds since 1970 and nanoseconds, rounding
-/// the fraction to the nearest nanosecond.
-func _secondsAndNanoseconds(of date: Date) -> (seconds: Int64, nanoseconds: Int64) {
+/// the fraction to the nearest nanosecond, or returns `nil` if the `Date` is
+/// not finite or its seconds do not fit in `Int64`.
+func _checkedSecondsAndNanoseconds(of date: Date) -> (seconds: Int64, nanoseconds: Int64)? {
     let interval = date.timeIntervalSince1970
-    precondition(interval.isFinite, "Date is not finite")
+    guard interval.isFinite else { return nil }
     var whole = interval.rounded(.down)
     var nanoseconds = ((interval - whole) * 1_000_000_000).rounded()
     if nanoseconds >= 1_000_000_000 {
         nanoseconds -= 1_000_000_000
         whole += 1
     }
-    guard let seconds = Int64(exactly: whole) else {
-        preconditionFailure("\(date) is outside the years PlainDateTime supports")
-    }
+    guard let seconds = Int64(exactly: whole) else { return nil }
     return (seconds, Int64(nanoseconds))
 }

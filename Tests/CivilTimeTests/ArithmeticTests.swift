@@ -179,6 +179,50 @@ struct ArithmeticTests {
         #expect(bad == 0)
     }
 
+    @Test("Checked arithmetic returns nil instead of trapping")
+    func checkedArithmetic() throws {
+        #expect(PlainDate.max.checkedAdding(days: 1) == nil)
+        #expect(PlainDate.min.checkedAdding(days: -1) == nil)
+        #expect(PlainDate.max.checkedAdding(months: 1) == nil)
+        #expect(PlainDate.min.checkedAdding(years: -1) == nil)
+        #expect(date(2024, 2, 29).checkedAdding(years: Int.max) == nil)
+        #expect(date(2024, 2, 29).checkedAdding(months: Int.min) == nil)
+        #expect(date(2024, 2, 29).checkedAdding(weeks: Int.max) == nil)
+        #expect(date(2024, 2, 29).checkedAdding(weeks: 1, days: Int.max) == nil)
+        #expect(date(2024, 2, 29).checkedAdding(years: 1) == date(2025, 2, 28))
+        #expect(date(2024, 1, 31).checkedAdding(DatePeriod(months: 1, days: 1)) == date(2024, 3, 1))
+
+        // A decoded period can be applied safely.
+        let hostile = try DatePeriod(parsing: "P999999999999999Y")
+        #expect(date(2024, 1, 1).checkedAdding(hostile) == nil)
+        #expect(dateTime(2024, 1, 1).checkedAdding(hostile) == nil)
+
+        #expect(PlainDateTime.max.checkedAdding(nanoseconds: 1) == nil)
+        #expect(PlainDateTime.min.checkedAdding(hours: -1) == nil)
+        #expect(dateTime(2024, 1, 1).checkedAdding(seconds: Int.max) == nil)
+        #expect(dateTime(2024, 1, 1).checkedAdding(hours: 25) == dateTime(2024, 1, 2, 1))
+
+        #expect(PlainYearMonth(year: 999_999, month: 12)!.checkedAdding(months: 1) == nil)
+        #expect(PlainYearMonth(year: 2024, month: 1)!.checkedAdding(years: Int.max) == nil)
+        #expect(PlainYearMonth(year: 2024, month: 1)!.checkedAdding(months: 13) == PlainYearMonth(year: 2025, month: 2))
+
+        // Wherever the result is in range, checked and trapping arithmetic agree.
+        var generator = SplitMix64(seed: 14)
+        var bad = 0
+        for _ in 0..<50_000 {
+            let d = PlainDate.randomMostlyModern(using: &generator)
+            let months = Int.random(in: -5000...5000, using: &generator)
+            let days = Int.random(in: -500_000...500_000, using: &generator)
+            guard let checked = d.checkedAdding(months: months, days: days) else {
+                // Only far-away dates may leave the range.
+                if abs(d.year) < 900_000 { bad += 1 }
+                continue
+            }
+            if checked != d.adding(months: months, days: days) { bad += 1 }
+        }
+        #expect(bad == 0)
+    }
+
     @Test("Year-months")
     func yearMonths() {
         let february = PlainYearMonth(year: 2024, month: 2)!

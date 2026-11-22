@@ -22,7 +22,15 @@ extension PlainDate {
         }
         guard let year = components.year, let month = components.month, let day = components.day
         else { return nil }
-        self.init(year: components.era == 0 ? 1 - year : year, month: month, day: day)
+        var isoYear = year
+        if components.era == 0 {
+            // 1 BC is year 0. Overflow-checked, because the components may
+            // come from untrusted input.
+            let (converted, overflow) = 1.subtractingReportingOverflow(year)
+            guard !overflow else { return nil }
+            isoYear = converted
+        }
+        self.init(year: isoYear, month: month, day: day)
     }
 
     /// The date as `DateComponents` with `year`, `month` and `day` set (and
