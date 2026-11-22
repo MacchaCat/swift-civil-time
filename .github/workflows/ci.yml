@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: Linux (Swift ${{ matrix.swift }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        swift: ["6.0", "6.1", "6.2", "6.3"]
+    container: swift:${{ matrix.swift }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install time-zone data
+        run: apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq tzdata
+      - name: Test (debug)
+        run: swift test --parallel
+      - name: Test (release)
+        run: swift test -c release --parallel
+
+  macos:
+    name: macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift --version
+      - name: Test
+        run: swift test --parallel
+
+  windows:
+    name: Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: compnerd/gha-setup-swift@main
+        with:
+          branch: swift-6.1-release
+          tag: 6.1-RELEASE
+      - name: Test
+        run: swift test
+
+  foundation-free:
+    name: Core module has no Foundation dependency
+    runs-on: ubuntu-latest
+    container: swift:6.3
+    steps:
+      - uses: actions/checkout@v4
+      - name: No Foundation imports in Sources/CivilTime
+        run: |
+          if grep -rnE '^\s*(@_exported |public |package |internal )?import +(Foundation|FoundationEssentials|FoundationInternationalization|Dispatch)' Sources/CivilTime; then
+            echo "Sources/CivilTime must not import Foundation"; exit 1
+          fi
+      - name: No Foundation symbols in the built module
+        run: |
+          swift build --target CivilTime
+          if nm -u $(find .build -path '*CivilTime.build*' -name '*.o') | grep -i 'foundation'; then
+            echo "CivilTime references Foundation symbols"; exit 1
+          fi
