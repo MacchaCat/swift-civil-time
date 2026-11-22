@@ -217,8 +217,7 @@ targets: [
 ]
 ```
 
-Requirements: Swift 6.0 or later (so far built and tested only with Swift
-6.4). There is no minimum deployment target. The
+Requirements: Swift 6.0 or later. There is no minimum deployment target. The
 few APIs that use `Duration` need macOS 13, iOS 16, tvOS 16 or watchOS 9, and
 formatting with `Date.FormatStyle` needs macOS 12, iOS 15, tvOS 15 or
 watchOS 8.
@@ -238,9 +237,9 @@ so a Postgres `DATE` (days since 2000-01-01) converts with
 
 ## Status
 
-The API is new and may still change before 1.0. So far it has been tested
-on macOS with Swift 6.4. The included CI workflow, which tests on Linux
-(Swift 6.0–6.3), Windows and macOS, has not run yet.
+The API is new and may still change before 1.0. CI runs the tests on Linux
+(Swift 6.0–6.3, debug and release), Windows and macOS, and checks that the
+`CivilTime` module stays free of Foundation.
 
 ## License
 
