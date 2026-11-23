@@ -114,6 +114,42 @@ struct Event: Codable {
 `period(until:)` always round-trips: `start.adding(start.period(until: end)) == end`
 for any two dates, and all of the period's parts have the same sign.
 
+## Ranges of dates and times
+
+Every type is `Comparable`, so Swift's own `Range` and `ClosedRange` work for
+spans of time, with `contains`, `overlaps` and `clamped(to:)`. `PlainDate` and
+`PlainYearMonth` are also `Strideable`, so their ranges can be counted and
+iterated.
+
+```swift
+// A vacation, including both ends
+let vacation = PlainDate("2025-05-01")!...PlainDate("2025-05-14")!
+vacation.count                                     // 14
+vacation.contains(PlainDate("2025-05-14")!)        // true
+for day in vacation where day.weekday == .saturday { print(day) }  // 2025-05-03, 2025-05-10
+
+// Business hours
+let businessHours = PlainTime("09:00")!..<PlainTime("18:00")!
+businessHours.contains(PlainTime("17:59")!)        // true
+businessHours.contains(PlainTime("18:00")!)        // false
+
+// A delivery window spanning several days
+let delivery = PlainDateTime("2025-05-01T18:00")!..<PlainDateTime("2025-05-03T12:00")!
+let slot = PlainDateTime("2025-05-03T11:00")!..<PlainDateTime("2025-05-03T13:00")!
+delivery.overlaps(slot)                            // true
+slot.clamped(to: delivery)                         // 2025-05-03T11:00:00..<2025-05-03T12:00:00
+
+// Months
+let secondQuarter = PlainYearMonth(year: 2025, month: 4)!...PlainYearMonth(year: 2025, month: 6)!
+secondQuarter.map(\.daysInMonth)                   // [30, 31, 30]
+PlainYearMonth(year: 2024, month: 2)!.days         // 2024-02-01...2024-02-29
+```
+
+A range needs its lower bound first, so opening hours that cross midnight,
+such as 21:00–03:00, can't be a `Range<PlainTime>`: creating one stops the
+program. For a particular night, use a `Range<PlainDateTime>`. A time-of-day
+range that can wrap past midnight is planned for an upcoming release.
+
 ## Working with `Date` and time zones
 
 `CivilTimeFoundation` converts between civil values and Foundation's `Date`,
