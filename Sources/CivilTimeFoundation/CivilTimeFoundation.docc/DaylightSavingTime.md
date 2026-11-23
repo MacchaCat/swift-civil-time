@@ -54,3 +54,12 @@ default: askUser("Did you mean the first or the second 1:30?")
 always midnight, and `PlainDate.dateInterval(in:)` returns the whole day. A
 day can last 23, 23.5, 25 hours, or, for a date that was skipped entirely,
 no time at all.
+
+### Ranges
+
+`Range<PlainDateTime>.dateInterval(in:)` turns a wall-clock range, such as an
+occurrence of a `PlainTimeRange`, into a `DateInterval`. Each end becomes the
+first instant at which the wall clock reaches it. Unlike converting the ends
+one by one with `date(in:disambiguation:)`, this never puts the end before the
+start: a range that lies entirely inside a gap, such as 02:30–03:00 on the
+night clocks spring forward, becomes an empty interval at the transition.

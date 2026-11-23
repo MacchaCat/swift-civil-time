@@ -220,6 +220,64 @@ extension PlainDateTime {
     }
 }
 
+extension PlainDateTime {
+    /// The first instant at which a wall clock in `timeZone` shows this
+    /// date-time or a later one.
+    ///
+    /// For an ordinary time this is the time itself. For a time shown twice,
+    /// it is the first occurrence. For a time skipped by a gap, it is the
+    /// transition at the end of the gap, when the clock jumps past it. Unlike
+    /// ``date(in:disambiguation:)``, this mapping never reverses the order of
+    /// two wall-clock times, so it is safe for both ends of a range.
+    func _firstInstant(in timeZone: TimeZone) -> Date {
+        let (local, nanoseconds) = secondsSinceEpoch
+        if let first = Self._instants(local: local, in: timeZone).first {
+            return Date(timeIntervalSince1970: TimeInterval(first) + TimeInterval(nanoseconds) / 1_000_000_000)
+        }
+        // The time is in a gap: find the first instant whose wall-clock time
+        // is at or after it. That is the transition at the end of the gap.
+        let before = Self._offset(of: timeZone, atUTC: local - _secondsPerDay)
+        let after = Self._offset(of: timeZone, atUTC: local + _secondsPerDay)
+        var low = local - Swift.max(before, after) - 1   // wall clock is before `local` here
+        var high = local - Swift.min(before, after)      // and at or after it here
+        while high - low > 1 {
+            let middle = low + (high - low) / 2
+            if middle + Self._offset(of: timeZone, atUTC: middle) >= local {
+                high = middle
+            } else {
+                low = middle
+            }
+        }
+        return Date(timeIntervalSince1970: TimeInterval(high))
+    }
+}
+
+extension Range where Bound == PlainDateTime {
+    /// The span of time this wall-clock range covers in `timeZone`.
+    ///
+    /// Each end becomes the first instant at which a wall clock in the time
+    /// zone reaches it. Across a daylight-saving change, the interval is
+    /// therefore longer or shorter than the wall-clock difference, as it is
+    /// in real life:
+    ///
+    /// ```swift
+    /// let newYork = TimeZone(identifier: "America/New_York")!
+    /// let bar = PlainTimeRange(start: PlainTime("21:00")!, end: PlainTime("03:00")!)
+    /// bar.occurrence(startingOn: PlainDate("2024-11-02")!).dateInterval(in: newYork).duration
+    /// // 7 hours: clocks fell back during the night
+    /// ```
+    ///
+    /// A time skipped by a gap maps to the end of the gap, so a range that
+    /// lies entirely inside a gap gives an empty interval.
+    public func dateInterval(in timeZone: TimeZone) -> DateInterval {
+        let start = lowerBound._firstInstant(in: timeZone)
+        let end = upperBound._firstInstant(in: timeZone)
+        // The mapping keeps order, so `end >= start`; `max` only guards
+        // against inconsistent time-zone data.
+        return DateInterval(start: start, end: Swift.max(start, end))
+    }
+}
+
 extension PlainDate {
     /// The first instant of this date in `timeZone`.
     ///
@@ -230,26 +288,7 @@ extension PlainDate {
     /// 2011-12-29 to 2011-12-31 — the result is the instant the next day
     /// starts, so the date's ``dateInterval(in:)`` is empty.
     public func startOfDay(in timeZone: TimeZone) -> Date {
-        let local = PlainDateTime(date: self, time: .midnight).secondsSinceEpoch.seconds
-        if let first = PlainDateTime._instants(local: local, in: timeZone).first {
-            return Date(timeIntervalSince1970: TimeInterval(first))
-        }
-        // Midnight is in a gap: find the first instant whose wall-clock time
-        // is at or after midnight. That is the transition at the end of the
-        // gap.
-        let before = PlainDateTime._offset(of: timeZone, atUTC: local - _secondsPerDay)
-        let after = PlainDateTime._offset(of: timeZone, atUTC: local + _secondsPerDay)
-        var low = local - Swift.max(before, after) - 1   // wall clock is before midnight here
-        var high = local - Swift.min(before, after)      // and at or after midnight here
-        while high - low > 1 {
-            let middle = low + (high - low) / 2
-            if middle + PlainDateTime._offset(of: timeZone, atUTC: middle) >= local {
-                high = middle
-            } else {
-                low = middle
-            }
-        }
-        return Date(timeIntervalSince1970: TimeInterval(high))
+        PlainDateTime(date: self, time: .midnight)._firstInstant(in: timeZone)
     }
 
     /// The span of time this date covers in `timeZone`, from its first

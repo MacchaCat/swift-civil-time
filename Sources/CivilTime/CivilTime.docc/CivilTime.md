@@ -43,6 +43,11 @@ module.
 - ``Weekday``
 - ``ISOWeekDate``
 
+### Spans of the day
+
+- ``PlainTimeRange``
+- ``ExtendedTime``
+
 ### Amounts of calendar time
 
 - ``DatePeriod``

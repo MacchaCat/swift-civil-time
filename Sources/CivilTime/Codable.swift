@@ -99,4 +99,28 @@ extension DatePeriod: Codable {
     }
 }
 
+extension PlainTimeRange: Codable {
+    /// Decodes a range from an ISO 8601 interval string such as `"21:00:00/03:00:00"`.
+    public init(from decoder: any Decoder) throws {
+        self = try _decodeISO8601(from: decoder) { text throws(CivilTimeParseError) in try PlainTimeRange(parsing: text) }
+    }
+
+    /// Encodes the range as an ISO 8601 interval string such as `"21:00:00/03:00:00"`.
+    public func encode(to encoder: any Encoder) throws {
+        try _encodeISO8601(description, to: encoder)
+    }
+}
+
+extension ExtendedTime: Codable {
+    /// Decodes an extended time from a string such as `"26:30:00"`.
+    public init(from decoder: any Decoder) throws {
+        self = try _decodeISO8601(from: decoder) { text throws(CivilTimeParseError) in try ExtendedTime(parsing: text) }
+    }
+
+    /// Encodes the extended time as a string such as `"26:30:00"`.
+    public func encode(to encoder: any Encoder) throws {
+        try _encodeISO8601(description, to: encoder)
+    }
+}
+
 #endif

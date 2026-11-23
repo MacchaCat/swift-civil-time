@@ -68,6 +68,8 @@ the same model to Swift and uses Temporal's names.
 | `PlainDateTime` | `2024-02-29T09:30:00` | local event times, SQL `TIMESTAMP` without time zone |
 | `PlainYearMonth` | `2024-02` | billing periods, card expiry, monthly reports |
 | `PlainMonthDay` | `--02-29` | recurring yearly dates |
+| `PlainTimeRange` | `21:00:00/03:00:00` | daily spans such as opening hours, including ones past midnight |
+| `ExtendedTime` | `26:30:00` | times past 24:00, as in Japan's 30-hour clock and GTFS timetables |
 | `DatePeriod` | `P1Y2M10D` | "1 year, 2 months and 10 days" |
 | `Weekday` | `.monday` | ISO 8601 day of week |
 | `ISOWeekDate` | `2025-W01-1` | ISO week numbering |
@@ -145,10 +147,44 @@ secondQuarter.map(\.daysInMonth)                   // [30, 31, 30]
 PlainYearMonth(year: 2024, month: 2)!.days         // 2024-02-01...2024-02-29
 ```
 
-A range needs its lower bound first, so opening hours that cross midnight,
-such as 21:00–03:00, can't be a `Range<PlainTime>`: creating one stops the
-program. For a particular night, use a `Range<PlainDateTime>`. A time-of-day
-range that can wrap past midnight is planned for an upcoming release.
+### Past midnight
+
+A `Range` needs its lower bound first, so opening hours that cross midnight,
+such as 21:00–03:00, can't be a `Range<PlainTime>`. Use `PlainTimeRange`, a
+span on the 24-hour clock that may wrap:
+
+```swift
+let bar = PlainTimeRange(start: PlainTime("21:00")!, end: PlainTime("03:00")!)
+bar.contains(PlainTime("01:30")!)                          // true
+bar.crossesMidnight                                        // true
+bar.occurrence(startingOn: PlainDate("2025-05-02")!)       // 2025-05-02T21:00:00..<2025-05-03T03:00:00
+bar.occurrence(containing: PlainDateTime("2025-05-03T01:30")!)   // the same Friday-night occurrence
+PlainTimeRange("18:00/24:00")                              // 18:00 until midnight
+```
+
+Some schedules write times after midnight as 25:00, 26:00 and so on, to keep a
+night attached to the day it started: Japan's 30-hour clock (30時間制) in TV
+listings and late-night opening hours, and GTFS public-transit timetables.
+`ExtendedTime` reads and writes them, and since extended times never wrap,
+Swift's own ranges work:
+
+```swift
+let lateShow = ExtendedTime("25:30")!..<ExtendedTime("26:00")!
+lateShow.occurrence(on: PlainDate("2025-05-02")!)          // 2025-05-03T01:30:00..<2025-05-03T02:00:00
+
+PlainTimeRange("18:00/29:00")                              // 18:00 until 05:00
+bar.extendedRange                                          // 21:00:00..<27:00:00
+```
+
+With `CivilTimeFoundation`, any `Range<PlainDateTime>` becomes a `DateInterval`
+in a time zone. A night when the clocks change is an hour shorter or longer,
+and a range that falls entirely in a skipped hour becomes empty instead of
+crashing:
+
+```swift
+let newYork = TimeZone(identifier: "America/New_York")!
+bar.occurrence(startingOn: PlainDate("2024-11-02")!).dateInterval(in: newYork).duration   // 7 hours
+```
 
 ## Working with `Date` and time zones
 

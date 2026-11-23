@@ -383,3 +383,124 @@ extension DatePeriod: CustomStringConvertible, LosslessStringConvertible {
         }
     }
 }
+
+// MARK: - ExtendedTime
+
+extension _Scanner {
+    /// `HH:MM`, `HH:MM:SS` or `HH:MM:SS.fffffffff`, where the hour has two to
+    /// four digits and may be 24 or more. A seconds value of 60 reads as 59.
+    @inlinable
+    mutating func extendedTime() -> _ParseResult<ExtendedTime> {
+        let hourOffset = position
+        let run = digitRunLength()
+        guard run >= 2 else { return .failure(.invalidFormat, offset: position) }
+        guard run <= 4 else { return .failure(.valueOutOfRange, offset: hourOffset) }
+        let hour = digits(maxCount: 4)!.value
+        guard consume(UInt8(ascii: ":")) else { return .failure(.invalidFormat, offset: position) }
+        guard case .success(let minute) = twoDigits() else { return .failure(.invalidFormat, offset: position) }
+        var second = (value: 0, offset: position)
+        var nanosecond = 0
+        if consume(UInt8(ascii: ":")) {
+            guard case .success(let s) = twoDigits() else { return .failure(.invalidFormat, offset: position) }
+            second = s
+            if consume(UInt8(ascii: ".")) || consume(UInt8(ascii: ",")) {
+                let fractionOffset = position
+                let fractionRun = digitRunLength()
+                guard fractionRun > 0 else { return .failure(.invalidFormat, offset: position) }
+                guard fractionRun <= 9 else { return .failure(.tooManyFractionalDigits, offset: fractionOffset) }
+                let fraction = digits(maxCount: 9)!
+                var scaled = fraction.value
+                for _ in fraction.count ..< 9 { scaled *= 10 }
+                nanosecond = scaled
+            }
+        }
+        guard minute.value <= 59 else { return .failure(.valueOutOfRange, offset: minute.offset) }
+        guard second.value <= 60 else { return .failure(.valueOutOfRange, offset: second.offset) }
+        return .success(ExtendedTime(
+            hour: hour, minute: minute.value, second: Swift.min(second.value, 59), nanosecond: nanosecond
+        )!)
+    }
+}
+
+extension ExtendedTime: CustomStringConvertible, LosslessStringConvertible {
+    /// The text form, such as `26:30:00` or `09:00:00.5`.
+    public var description: String {
+        _makeString(capacity: 24) { writer in
+            writer.appendDigits(hour, width: 2)
+            writer.append(ascii: ":")
+            writer.appendDigits(minute, width: 2)
+            writer.append(ascii: ":")
+            writer.appendDigits(second, width: 2)
+            writer.appendFraction(nanoseconds: nanosecond)
+        }
+    }
+
+    /// Parses an extended time such as `26:30` or `25:00:00`, or returns `nil`.
+    public init?(_ description: String) {
+        guard let value = try? ExtendedTime(parsing: description) else { return nil }
+        self = value
+    }
+
+    /// Parses an extended time: `HH:MM`, `HH:MM:SS` or `HH:MM:SS.fffffffff`,
+    /// where the hour has two to four digits and may be 24 or more.
+    ///
+    /// - Throws: ``CivilTimeParseError`` describing the first problem.
+    public init(parsing text: some StringProtocol) throws(CivilTimeParseError) {
+        self = try _parse(text, as: "ExtendedTime", endsWithTime: true) { $0.extendedTime() }
+    }
+}
+
+// MARK: - PlainTimeRange
+
+extension PlainTimeRange: CustomStringConvertible, LosslessStringConvertible {
+    /// The ISO 8601 interval form, such as `21:00:00/03:00:00`.
+    public var description: String {
+        start.description + "/" + end.description
+    }
+
+    /// Parses a range such as `21:00/03:00` or `18:00/29:00`, or returns `nil`.
+    public init?(_ description: String) {
+        guard let value = try? PlainTimeRange(parsing: description) else { return nil }
+        self = value
+    }
+
+    /// Parses an interval of two times: a start time as in
+    /// ``PlainTime/init(parsing:)``, `/`, and an end time.
+    ///
+    /// The end is read like the start, so when it is earlier than the start
+    /// the range runs past midnight, and when they are equal the range covers
+    /// the whole day: `21:00/03:00`, `06:00/06:00`.
+    ///
+    /// The end may also be written with extended hours, as
+    /// ``ExtendedTime`` does, to show that it falls on the next day:
+    /// `18:00/24:00` ends at midnight, and `18:00/29:00` (the 30-hour clock)
+    /// ends at 05:00. An extended end must come after the start and at most
+    /// 24 hours later.
+    ///
+    /// - Throws: ``CivilTimeParseError`` describing the first problem.
+    public init(parsing text: some StringProtocol) throws(CivilTimeParseError) {
+        self = try _parse(text, as: "PlainTimeRange", endsWithTime: true) { scanner in
+            let start: PlainTime
+            switch scanner.time() {
+            case .success(let value): start = value
+            case .failure(let kind, let offset): return .failure(kind, offset: offset)
+            }
+            guard scanner.consume(UInt8(ascii: "/")) else { return .failure(.invalidFormat, offset: scanner.position) }
+            let endOffset = scanner.position
+            let end: ExtendedTime
+            switch scanner.extendedTime() {
+            case .success(let value): end = value
+            case .failure(let kind, let offset): return .failure(kind, offset: offset)
+            }
+            guard end.days > 0 else {
+                return .success(PlainTimeRange(start: start, end: end.timeOfDay))
+            }
+            // An end of 24:00 or later is counted from the start's day.
+            guard let range = PlainTimeRange(
+                start: start,
+                lengthInNanoseconds: end.nanosecondsSinceMidnight - start.nanosecondsSinceMidnight
+            ) else { return .failure(.valueOutOfRange, offset: endOffset) }
+            return .success(range)
+        }
+    }
+}
