@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 (2026-11-23)
 
 - `PlainTimeRange`: a daily span of wall-clock time that may cross midnight,
   such as opening hours of 21:00–03:00, with `contains`, `overlaps`,
