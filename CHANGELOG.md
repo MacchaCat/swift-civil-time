@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.0 (unreleased)
+## 0.4.0 (2026-11-25)
 
 - `CivilTimeFoundation`: `ZonedDateTime`, an exact instant together with its
   time zone and wall-clock time, like Temporal's `ZonedDateTime`.
