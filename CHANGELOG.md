@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.0 (unreleased)
+
+- `CivilTimeFoundation`: `ZonedDateTime`, an exact instant together with its
+  time zone and wall-clock time, like Temporal's `ZonedDateTime`.
+  - Created from exact seconds and nanoseconds, from a `Date`, or from a
+    `PlainDateTime` with a disambiguation, each with a non-trapping form;
+    `withTimeZone(_:)` and `checkedWithTimeZone(_:)`; `startOfDay`.
+  - `adding(_:disambiguation:)` and `checkedAdding(_:disambiguation:)` share
+    their implementation with `Date.adding(_:in:)`.
+  - `dateTimeDuration(until:)`, counted as Temporal's `until` does and
+    always leading back to the same instant; `duration(until:)`.
+  - RFC 9557 text (`2025-05-02T22:00:00+09:00[Asia/Tokyo]`; offsets with
+    seconds, for historical local mean time, go beyond the RFC), with
+    `OffsetPolicy` (`reject`, `prefer`, `use`, `ignore`) for offsets that do
+    not match the time zone. `Codable` decodes with `prefer`.
+  - Equality and hashing use the instant and the time zone: its identifier,
+    or the exact offset of a fixed-offset zone.
+- `CivilTimeParseError.Kind` gains `unknownTimeZone` and `offsetMismatch`.
+
 ## 0.3.0 (2026-11-25)
 
 - `DatePeriod` is now `DateDuration`, and `PlainDate.period(until:)` is now

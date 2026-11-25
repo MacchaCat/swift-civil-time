@@ -59,13 +59,17 @@ extension Date {
         guard timeIntervalSince1970.isFinite,
               let (seconds, nanoseconds) = duration.clockSecondsAndNanoseconds
         else { return nil }
-        var instant = self
-        if duration.hasCalendarUnits {
-            guard let local = PlainDateTime(checking: self, in: timeZone),
-                  let moved = local.checkedAdding(duration.dateDuration)
-            else { return nil }
-            instant = moved.date(in: timeZone, disambiguation: disambiguation)
+        guard duration.hasCalendarUnits else {
+            // Exact time only: add it to the Date directly, without rounding
+            // the Date to nanoseconds first.
+            return addingTimeInterval(TimeInterval(seconds) + TimeInterval(nanoseconds) / 1_000_000_000)
         }
-        return instant.addingTimeInterval(TimeInterval(seconds) + TimeInterval(nanoseconds) / 1_000_000_000)
+        // The same implementation as ZonedDateTime.checkedAdding.
+        guard let zoned = ZonedDateTime(checking: self, in: timeZone),
+              let result = ZonedDateTime._adding(
+                duration, toSeconds: zoned.secondsSince1970, nanoseconds: Int64(zoned.nanoseconds),
+                wallClock: zoned.dateTime, in: zoned.timeZone, disambiguation: disambiguation)
+        else { return nil }
+        return Date(timeIntervalSince1970: TimeInterval(result.seconds) + TimeInterval(result.nanoseconds) / 1_000_000_000)
     }
 }

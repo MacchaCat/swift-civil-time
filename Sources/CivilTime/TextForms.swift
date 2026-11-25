@@ -646,3 +646,120 @@ extension DateTimeDuration: CustomStringConvertible, LosslessStringConvertible {
         }
     }
 }
+
+// MARK: - Zoned date-time text (used by CivilTimeFoundation)
+
+/// The parts of an RFC 9557 date-time such as
+/// `2025-05-02T22:00:00+09:00[Asia/Tokyo]`, before the time zone is resolved.
+package struct _ZonedText: Sendable {
+    package let dateTime: PlainDateTime
+    /// The UTC offset in seconds east, or `nil` if the text has none.
+    package let offset: Int?
+    /// Whether the offset was written with seconds (`+00:19:32`).
+    package let offsetHasSeconds: Bool
+    /// The UTF-8 offset of the UTC offset, for error messages.
+    package let offsetPosition: Int
+    /// Whether the offset was written as `Z`, meaning the date-time is UTC.
+    package let isUTC: Bool
+    /// The text between the brackets, without a leading `!`.
+    package let zone: String
+    /// The UTC-offset form of the zone (`[+09:00]`), in seconds east.
+    package let zoneOffset: Int?
+    /// The UTF-8 offset of the zone text, for error messages.
+    package let zonePosition: Int
+}
+
+extension _Scanner {
+    /// `±HH:MM` or `±HH:MM:SS`, in seconds east of UTC.
+    @usableFromInline
+    mutating func utcOffset() -> _ParseResult<(seconds: Int, hasSeconds: Bool)> {
+        let start = position
+        guard let sign = peek(), sign == UInt8(ascii: "+") || sign == UInt8(ascii: "-") else {
+            return .failure(.invalidFormat, offset: position)
+        }
+        position += 1
+        guard case .success(let hours) = twoDigits() else { return .failure(.invalidFormat, offset: position) }
+        guard consume(UInt8(ascii: ":")) else { return .failure(.invalidFormat, offset: position) }
+        guard case .success(let minutes) = twoDigits() else { return .failure(.invalidFormat, offset: position) }
+        var seconds = 0
+        var hasSeconds = false
+        if consume(UInt8(ascii: ":")) {
+            guard case .success(let s) = twoDigits() else { return .failure(.invalidFormat, offset: position) }
+            seconds = s.value
+            hasSeconds = true
+        }
+        guard hours.value <= 23, minutes.value <= 59, seconds <= 59 else { return .failure(.valueOutOfRange, offset: start) }
+        let total = hours.value * 3600 + minutes.value * 60 + seconds
+        return .success((sign == UInt8(ascii: "-") ? -total : total, hasSeconds))
+    }
+}
+
+/// Parses `<date-time>[<offset>]'['['!']<zone>']'`, where the offset is `Z` or
+/// `±HH:MM[:SS]` and the zone is an IANA name or `±HH:MM`. Other bracketed
+/// annotations, such as `[u-ca=…]`, are rejected.
+package func _parseZonedText(_ text: some StringProtocol) throws(CivilTimeParseError) -> _ZonedText {
+    try _parse(text, as: "ZonedDateTime") { scanner in
+        let dateTime: PlainDateTime
+        switch scanner.dateTime() {
+        case .success(let value): dateTime = value
+        case .failure(let kind, let offset): return .failure(kind, offset: offset)
+        }
+        var offset: Int?
+        var offsetHasSeconds = false
+        var isUTC = false
+        let offsetPosition = scanner.position
+        if scanner.consume(UInt8(ascii: "Z")) || scanner.consume(UInt8(ascii: "z")) {
+            offset = 0
+            isUTC = true
+        } else if let next = scanner.peek(), next == UInt8(ascii: "+") || next == UInt8(ascii: "-") {
+            switch scanner.utcOffset() {
+            case .success(let value):
+                offset = value.seconds
+                offsetHasSeconds = value.hasSeconds
+            case .failure(let kind, let position): return .failure(kind, offset: position)
+            }
+        }
+        guard scanner.consume(UInt8(ascii: "[")) else { return .failure(.invalidFormat, offset: scanner.position) }
+        _ = scanner.consume(UInt8(ascii: "!"))
+        let zonePosition = scanner.position
+        var zoneOffset: Int?
+        if let next = scanner.peek(), next == UInt8(ascii: "+") || next == UInt8(ascii: "-") {
+            switch scanner.utcOffset() {
+            case .success(let value): zoneOffset = value.seconds
+            case .failure(let kind, let position): return .failure(kind, offset: position)
+            }
+        }
+        let nameStart = scanner.position
+        while let byte = scanner.peek(), byte != UInt8(ascii: "]") {
+            let allowed = (byte >= 0x41 && byte <= 0x5A) || (byte >= 0x61 && byte <= 0x7A) || (byte >= 0x30 && byte <= 0x39)
+                || byte == UInt8(ascii: "/") || byte == UInt8(ascii: "_") || byte == UInt8(ascii: "-")
+                || byte == UInt8(ascii: "+") || byte == UInt8(ascii: ".")
+            guard allowed, zoneOffset == nil, scanner.position - nameStart < 255 else {
+                return .failure(.invalidFormat, offset: scanner.position)
+            }
+            scanner.position += 1
+        }
+        let zone = String(decoding: UnsafeBufferPointer(rebasing: scanner.bytes[nameStart ..< scanner.position]), as: UTF8.self)
+        guard zoneOffset != nil || !zone.isEmpty else { return .failure(.invalidFormat, offset: scanner.position) }
+        guard scanner.consume(UInt8(ascii: "]")) else { return .failure(.invalidFormat, offset: scanner.position) }
+        return .success(_ZonedText(
+            dateTime: dateTime, offset: offset, offsetHasSeconds: offsetHasSeconds, offsetPosition: offsetPosition, isUTC: isUTC,
+            zone: zone, zoneOffset: zoneOffset, zonePosition: zonePosition
+        ))
+    }
+}
+
+/// Writes a UTC offset as `±HH:MM`, or `±HH:MM:SS` when it has seconds.
+package func _formatUTCOffset(_ seconds: Int) -> String {
+    _makeString(capacity: 12) { writer in
+        writer.append(ascii: seconds < 0 ? "-" : "+")
+        let magnitude = Int(seconds.magnitude)
+        writer.appendDigits(magnitude / 3600, width: 2)
+        writer.append(ascii: ":")
+        writer.appendDigits(magnitude / 60 % 60, width: 2)
+        if magnitude % 60 != 0 {
+            writer.append(ascii: ":")
+            writer.appendDigits(magnitude % 60, width: 2)
+        }
+    }
+}

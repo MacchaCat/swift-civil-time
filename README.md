@@ -72,6 +72,7 @@ the same model to Swift and uses Temporal's names.
 | `ExtendedTime` | `26:30:00` | times past 24:00, as in Japan's 30-hour clock and GTFS timetables |
 | `DateDuration` | `P1Y2M10D` | "1 year, 2 months and 10 days" |
 | `DateTimeDuration` | `P1DT12H30M` | the same plus hours, minutes and seconds |
+| `ZonedDateTime` | `2025-05-02T22:00:00+09:00[Asia/Tokyo]` | a moment in a place: flights, meetings (in `CivilTimeFoundation`) |
 | `Weekday` | `.monday` | ISO 8601 day of week |
 | `ISOWeekDate` | `2025-W01-1` | ISO week numbering |
 
@@ -253,6 +254,32 @@ let noon = PlainDateTime("2024-03-09T12:00")!.date(in: newYork)
 noon.adding(DateTimeDuration(days: 1), in: newYork)     // 2024-03-10 12:00, 23 hours later
 noon.adding(DateTimeDuration(hours: 24), in: newYork)   // 2024-03-10 13:00
 ```
+
+`ZonedDateTime` keeps an instant, its time zone and the wall-clock time
+together, like Temporal's `ZonedDateTime`. Its text form follows RFC 9557,
+as Temporal does:
+
+```swift
+let tokyo = TimeZone(identifier: "Asia/Tokyo")!
+let departure = ZonedDateTime(PlainDateTime("2025-05-02T22:00")!, in: tokyo)
+departure.description              // "2025-05-02T22:00:00+09:00[Asia/Tokyo]"
+
+let arrival = departure.adding(DateTimeDuration(hours: 10, minutes: 5))
+    .withTimeZone(TimeZone(identifier: "America/Los_Angeles")!)
+arrival.dateTime                   // 2025-05-02T16:05:00, local time on arrival
+
+let parsed = try ZonedDateTime(parsing: "2024-11-03T01:30:00-05:00[America/New_York]")
+parsed.utcOffset                   // -18000: the second 01:30, in standard time
+```
+
+The UTC offset in a string picks between the two occurrences of a repeated
+time. When it no longer matches the time zone's rules, parsing rejects it by
+default, while decoding keeps the wall-clock time, so stored values survive
+rule changes. `dateTimeDuration(until:)` counts calendar units on the wall
+clock and the rest as exact time, the way Temporal's `until` does, and always
+leads back to the same instant. UTC offsets with seconds, which only
+historical local mean time needs, go beyond RFC 9557, so other parsers may
+reject them.
 
 For display, use any `Date.FormatStyle`; the civil fields are shown as they
 are, whatever the device's time zone:

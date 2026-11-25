@@ -162,17 +162,23 @@ extension PlainDateTime {
     /// skipped.date(in: newYork, disambiguation: .earlier) // 2024-03-10T01:30-05:00
     /// ```
     public func date(in timeZone: TimeZone, disambiguation: Disambiguation = .compatible) -> Date {
-        let (local, nanoseconds) = secondsSinceEpoch
-        let candidates = Self._instants(local: local, in: timeZone)
-        let utc: Int64
-        if let first = candidates.first, let last = candidates.last {
-            utc = disambiguation == .later ? last : first
-        } else {
-            let before = Self._offset(of: timeZone, atUTC: local - _secondsPerDay)
-            let after = Self._offset(of: timeZone, atUTC: local + _secondsPerDay)
-            utc = disambiguation == .earlier ? local - after : local - before
-        }
+        let (_, nanoseconds) = secondsSinceEpoch
+        let utc = _utcSeconds(in: timeZone, disambiguation: disambiguation)
         return Date(timeIntervalSince1970: TimeInterval(utc) + TimeInterval(nanoseconds) / 1_000_000_000)
+    }
+
+    /// The whole UTC seconds since 1970 of this wall-clock time in
+    /// `timeZone`, resolved with `disambiguation`. The nanoseconds of this
+    /// date-time are not included.
+    func _utcSeconds(in timeZone: TimeZone, disambiguation: Disambiguation) -> Int64 {
+        let (local, _) = secondsSinceEpoch
+        let candidates = Self._instants(local: local, in: timeZone)
+        if let first = candidates.first, let last = candidates.last {
+            return disambiguation == .later ? last : first
+        }
+        let before = Self._offset(of: timeZone, atUTC: local - _secondsPerDay)
+        let after = Self._offset(of: timeZone, atUTC: local + _secondsPerDay)
+        return disambiguation == .earlier ? local - after : local - before
     }
 
     /// Every instant at which a wall clock in `timeZone` shows this date and

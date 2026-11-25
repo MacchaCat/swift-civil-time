@@ -202,7 +202,7 @@ public struct CivilTimeParseError: Error, Sendable, Hashable, CustomStringConver
     public let typeName: String
 
     @usableFromInline
-    init(kind: Kind, input: some StringProtocol, offset: Int, typeName: String) {
+    package init(kind: Kind, input: some StringProtocol, offset: Int, typeName: String) {
         self.kind = kind
         self.input = input.utf8.count > 80 ? String(input.prefix(77)) + "..." : String(input)
         self.offset = offset
@@ -236,6 +236,11 @@ public struct CivilTimeParseError: Error, Sendable, Hashable, CustomStringConver
         public static let unexpectedTimeZone = Kind(_code: 4)
         /// The fraction of a second has more than nine digits.
         public static let tooManyFractionalDigits = Kind(_code: 5)
+        /// The bracketed time zone is not one the system knows.
+        public static let unknownTimeZone = Kind(_code: 6)
+        /// The UTC offset in the text is not one the time zone uses at that
+        /// date and time.
+        public static let offsetMismatch = Kind(_code: 7)
 
         public var description: String {
             switch _code {
@@ -244,6 +249,8 @@ public struct CivilTimeParseError: Error, Sendable, Hashable, CustomStringConver
             case 3: return "unexpected trailing text"
             case 4: return "unexpected UTC offset or time zone"
             case 5: return "more than nine fractional digits"
+            case 6: return "unknown time zone"
+            case 7: return "UTC offset does not match the time zone"
             default: return "unknown error"
             }
         }
