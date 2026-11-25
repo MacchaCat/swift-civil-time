@@ -50,7 +50,8 @@ module.
 
 ### Amounts of calendar time
 
-- ``DatePeriod``
+- ``DateDuration``
+- ``DateTimeDuration``
 
 ### Text
 

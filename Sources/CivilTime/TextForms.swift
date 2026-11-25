@@ -296,9 +296,9 @@ extension PlainMonthDay: CustomStringConvertible, LosslessStringConvertible {
     }
 }
 
-// MARK: - DatePeriod
+// MARK: - DateDuration
 
-extension DatePeriod: CustomStringConvertible, LosslessStringConvertible {
+extension DateDuration: CustomStringConvertible, LosslessStringConvertible {
     /// The ISO 8601 duration form, such as `P1Y2M10D`, `P0D`, `-P1M`, or
     /// `P1Y-2M` when the components have mixed signs.
     public var description: String {
@@ -317,7 +317,7 @@ extension DatePeriod: CustomStringConvertible, LosslessStringConvertible {
 
     /// Parses an ISO 8601 date duration such as `P1Y2M10D`, or returns `nil`.
     public init?(_ description: String) {
-        guard let value = try? DatePeriod(parsing: description) else { return nil }
+        guard let value = try? DateDuration(parsing: description) else { return nil }
         self = value
     }
 
@@ -325,13 +325,13 @@ extension DatePeriod: CustomStringConvertible, LosslessStringConvertible {
     ///
     /// Components appear in the order years (`Y`), months (`M`), weeks (`W`)
     /// and days (`D`), each at most once, and at least one must be present.
-    /// A leading `-` negates the whole period; a component may also carry its
+    /// A leading `-` negates the whole duration; a component may also carry its
     /// own sign (`P1Y-2M`). Weeks are stored as days. Time components
     /// (`PT1H`) are rejected.
     ///
     /// - Throws: ``CivilTimeParseError`` describing the first problem.
     public init(parsing text: some StringProtocol) throws(CivilTimeParseError) {
-        self = try _parse(text, as: "DatePeriod") { scanner in
+        self = try _parse(text, as: "DateDuration") { scanner in
             var negateAll = false
             if scanner.consume(UInt8(ascii: "-")) {
                 negateAll = true
@@ -377,9 +377,9 @@ extension DatePeriod: CustomStringConvertible, LosslessStringConvertible {
             let (weekDays, o1) = values[2].multipliedReportingOverflow(by: 7)
             let (days, o2) = weekDays.addingReportingOverflow(values[3])
             guard !o1 && !o2 else { return .failure(.valueOutOfRange, offset: 0) }
-            var period = DatePeriod(years: values[0], months: values[1], days: days)
-            if negateAll { period = period.negated }
-            return .success(period)
+            var duration = DateDuration(years: values[0], months: values[1], days: days)
+            if negateAll { duration = duration.negated }
+            return .success(duration)
         }
     }
 }
@@ -501,6 +501,148 @@ extension PlainTimeRange: CustomStringConvertible, LosslessStringConvertible {
                 lengthInNanoseconds: end.nanosecondsSinceMidnight - start.nanosecondsSinceMidnight
             ) else { return .failure(.valueOutOfRange, offset: endOffset) }
             return .success(range)
+        }
+    }
+}
+
+// MARK: - DateTimeDuration
+
+extension DateTimeDuration: CustomStringConvertible, LosslessStringConvertible {
+    /// The ISO 8601 duration form, such as `P1DT12H30M`, `PT1.5S`, `PT0S`,
+    /// `-PT0.5S`, or `P1DT-2H` when the components have mixed signs.
+    public var description: String {
+        if isZero { return "PT0S" }
+        let allNonPositive = years <= 0 && months <= 0 && days <= 0
+            && hours <= 0 && minutes <= 0 && seconds <= 0 && nanoseconds <= 0
+        return _makeString(capacity: 192) { writer in
+            if allNonPositive { writer.append(ascii: "-") }
+            writer.append(ascii: "P")
+            for (value, unit) in [(years, "Y"), (months, "M"), (days, "D")] as [(Int, Unicode.Scalar)] where value != 0 {
+                if value < 0 && !allNonPositive { writer.append(ascii: "-") }
+                writer.appendDigits(UInt64(value.magnitude), width: 1)
+                writer.append(ascii: unit)
+            }
+            guard hours != 0 || minutes != 0 || seconds != 0 || nanoseconds != 0 else { return }
+            writer.append(ascii: "T")
+            for (value, unit) in [(hours, "H"), (minutes, "M")] as [(Int64, Unicode.Scalar)] where value != 0 {
+                if value < 0 && !allNonPositive { writer.append(ascii: "-") }
+                writer.appendDigits(value.magnitude, width: 1)
+                writer.append(ascii: unit)
+            }
+            if seconds != 0 || nanoseconds != 0 {
+                // The sign belongs to the whole decimal, so -0.5 seconds
+                // keeps its sign although its whole part is zero.
+                if (seconds < 0 || nanoseconds < 0) && !allNonPositive { writer.append(ascii: "-") }
+                writer.appendDigits(seconds.magnitude, width: 1)
+                writer.appendFraction(nanoseconds: Int(nanoseconds.magnitude))
+                writer.append(ascii: "S")
+            }
+        }
+    }
+
+    /// Parses an ISO 8601 duration such as `P1DT12H30M`, or returns `nil`.
+    public init?(_ description: String) {
+        guard let value = try? DateTimeDuration(parsing: description) else { return nil }
+        self = value
+    }
+
+    /// Parses an ISO 8601 duration with date and time components.
+    ///
+    /// After `P` come years (`Y`), months (`M`), weeks (`W`) and days (`D`);
+    /// after `T`, hours (`H`), minutes (`M`) and seconds (`S`). Components
+    /// appear in that order, each at most once; at least one must be present,
+    /// and a `T` must be followed by at least one. Only seconds may have a
+    /// fraction (one to nine digits, after `.` or `,`). A leading `-`
+    /// negates the whole duration, and each component may also carry its own
+    /// sign. Weeks are stored as days. Every form that ``DateDuration``
+    /// writes is accepted.
+    ///
+    /// - Throws: ``CivilTimeParseError`` describing the first problem.
+    public init(parsing text: some StringProtocol) throws(CivilTimeParseError) {
+        self = try _parse(text, as: "DateTimeDuration") { scanner in
+            var negateAll = false
+            if scanner.consume(UInt8(ascii: "-")) {
+                negateAll = true
+            } else {
+                _ = scanner.consume(UInt8(ascii: "+"))
+            }
+            guard scanner.consume(UInt8(ascii: "P")) else { return .failure(.invalidFormat, offset: scanner.position) }
+
+            // Values in order: years, months, weeks, days, hours, minutes, seconds.
+            var values = [Int64](repeating: 0, count: 7)
+            var fraction: Int64 = 0
+            var sawComponent = false
+            var inTime = false
+            var nextUnit = 0
+            var timeComponents = 0
+            let dateUnits: [UInt8] = [UInt8(ascii: "Y"), UInt8(ascii: "M"), UInt8(ascii: "W"), UInt8(ascii: "D")]
+            let timeUnits: [UInt8] = [UInt8(ascii: "H"), UInt8(ascii: "M"), UInt8(ascii: "S")]
+
+            while !scanner.isAtEnd {
+                if !inTime && scanner.consume(UInt8(ascii: "T")) {
+                    inTime = true
+                    nextUnit = 4
+                    continue
+                }
+                var negative = false
+                if scanner.consume(UInt8(ascii: "-")) {
+                    negative = true
+                } else {
+                    _ = scanner.consume(UInt8(ascii: "+"))
+                }
+                let numberOffset = scanner.position
+                let run = scanner.digitRunLength()
+                guard run > 0 else { return .failure(.invalidFormat, offset: scanner.position) }
+                guard run <= 15 else { return .failure(.valueOutOfRange, offset: numberOffset) }
+                var magnitude: Int64 = 0
+                for _ in 0..<run {
+                    magnitude = magnitude * 10 + Int64(scanner.bytes[scanner.position] &- 0x30)
+                    scanner.position += 1
+                }
+                var nanoseconds: Int64 = 0
+                var hasFraction = false
+                let fractionOffset = scanner.position
+                if scanner.consume(UInt8(ascii: ".")) || scanner.consume(UInt8(ascii: ",")) {
+                    let fractionRun = scanner.digitRunLength()
+                    guard fractionRun > 0 else { return .failure(.invalidFormat, offset: scanner.position) }
+                    guard fractionRun <= 9 else { return .failure(.tooManyFractionalDigits, offset: scanner.position) }
+                    for _ in 0..<fractionRun {
+                        nanoseconds = nanoseconds * 10 + Int64(scanner.bytes[scanner.position] &- 0x30)
+                        scanner.position += 1
+                    }
+                    for _ in fractionRun..<9 { nanoseconds *= 10 }
+                    hasFraction = true
+                }
+                guard let unitByte = scanner.peek() else { return .failure(.invalidFormat, offset: scanner.position) }
+                let units = inTime ? timeUnits : dateUnits
+                guard let found = units.firstIndex(of: unitByte) else {
+                    return .failure(.invalidFormat, offset: scanner.position)
+                }
+                let unit = (inTime ? 4 : 0) + found
+                guard unit >= nextUnit else { return .failure(.invalidFormat, offset: scanner.position) }
+                // Only seconds may have a fraction.
+                guard !hasFraction || unit == 6 else { return .failure(.invalidFormat, offset: fractionOffset) }
+                scanner.position += 1
+                values[unit] = negative ? -magnitude : magnitude
+                if unit == 6 { fraction = negative ? -nanoseconds : nanoseconds }
+                nextUnit = unit + 1
+                sawComponent = true
+                if inTime { timeComponents += 1 }
+            }
+            guard sawComponent, !inTime || timeComponents > 0 else {
+                return .failure(.invalidFormat, offset: scanner.position)
+            }
+            let (weekDays, o1) = values[2].multipliedReportingOverflow(by: 7)
+            let (dayTotal, o2) = weekDays.addingReportingOverflow(values[3])
+            guard !o1, !o2,
+                  let years = Int(exactly: values[0]), let months = Int(exactly: values[1]), let days = Int(exactly: dayTotal)
+            else { return .failure(.valueOutOfRange, offset: 0) }
+            var duration = DateTimeDuration(
+                years: years, months: months, days: days,
+                hours: values[4], minutes: values[5], seconds: values[6], nanoseconds: fraction
+            )
+            if negateAll { duration = duration.negated }
+            return .success(duration)
         }
     }
 }

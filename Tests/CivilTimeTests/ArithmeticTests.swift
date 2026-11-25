@@ -30,7 +30,7 @@ struct ArithmeticTests {
         #expect(date(2024, 1, 15).adding(months: -13) == date(2022, 12, 15))
         #expect(date(0, 1, 1).adding(months: -1) == date(-1, 12, 1))
         #expect(date(2024, 1, 15).adding(years: 1, months: 1) == date(2025, 2, 15))
-        #expect(date(2024, 1, 15).adding(DatePeriod(years: 1, months: -1, days: 3)) == date(2024, 12, 18))
+        #expect(date(2024, 1, 15).adding(DateDuration(years: 1, months: -1, days: 3)) == date(2024, 12, 18))
     }
 
     @Test("Adding months agrees with a component-wise definition")
@@ -68,8 +68,8 @@ struct ArithmeticTests {
     func periods(start: (Int, Int, Int), end: (Int, Int, Int), expected: (Int, Int, Int)) {
         let a = date(start.0, start.1, start.2)
         let b = date(end.0, end.1, end.2)
-        let period = a.period(until: b)
-        #expect(period == DatePeriod(years: expected.0, months: expected.1, days: expected.2))
+        let period = a.dateDuration(until: b)
+        #expect(period == DateDuration(years: expected.0, months: expected.1, days: expected.2))
         #expect(a.adding(period) == b)
     }
 
@@ -85,7 +85,7 @@ struct ArithmeticTests {
             } else {
                 b = PlainDate.randomMostlyModern(using: &generator)
             }
-            let p = a.period(until: b)
+            let p = a.dateDuration(until: b)
             let signs = [p.years, p.months, p.days].filter { $0 != 0 }.map { $0 > 0 }
             let oneSign = Set(signs).count <= 1
             let monthsInRange = abs(p.months) < 12
@@ -134,7 +134,7 @@ struct ArithmeticTests {
         #expect(t.adding(minutes: 60 * 24 * 365) == dateTime(2025, 1, 30, 22))
         #expect(t.adding(seconds: -86_400 * 31) == dateTime(2023, 12, 31, 22))
         #expect(t.adding(nanoseconds: 7_200_000_000_000) == dateTime(2024, 2, 1, 0))
-        #expect(dateTime(2024, 2, 29).adding(DatePeriod(years: 1)) == dateTime(2025, 2, 28))
+        #expect(dateTime(2024, 2, 29).adding(DateDuration(years: 1)) == dateTime(2025, 2, 28))
     }
 
     @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
@@ -190,10 +190,10 @@ struct ArithmeticTests {
         #expect(date(2024, 2, 29).checkedAdding(weeks: Int.max) == nil)
         #expect(date(2024, 2, 29).checkedAdding(weeks: 1, days: Int.max) == nil)
         #expect(date(2024, 2, 29).checkedAdding(years: 1) == date(2025, 2, 28))
-        #expect(date(2024, 1, 31).checkedAdding(DatePeriod(months: 1, days: 1)) == date(2024, 3, 1))
+        #expect(date(2024, 1, 31).checkedAdding(DateDuration(months: 1, days: 1)) == date(2024, 3, 1))
 
         // A decoded period can be applied safely.
-        let hostile = try DatePeriod(parsing: "P999999999999999Y")
+        let hostile = try DateDuration(parsing: "P999999999999999Y")
         #expect(date(2024, 1, 1).checkedAdding(hostile) == nil)
         #expect(dateTime(2024, 1, 1).checkedAdding(hostile) == nil)
 
@@ -255,13 +255,13 @@ struct ArithmeticTests {
 
     @Test("Period helpers")
     func periodHelpers() {
-        let p = DatePeriod(years: 1, months: 14, days: 3)
-        #expect(p.normalized == DatePeriod(years: 2, months: 2, days: 3))
+        let p = DateDuration(years: 1, months: 14, days: 3)
+        #expect(p.normalized == DateDuration(years: 2, months: 2, days: 3))
         #expect(p.totalMonths == 26)
-        #expect(-p == DatePeriod(years: -1, months: -14, days: -3))
-        #expect(p + DatePeriod.weeks(1) == DatePeriod(years: 1, months: 14, days: 10))
+        #expect(-p == DateDuration(years: -1, months: -14, days: -3))
+        #expect(p + DateDuration.weeks(1) == DateDuration(years: 1, months: 14, days: 10))
         #expect(p - p == .zero)
-        #expect(DatePeriod(months: 12) != DatePeriod(years: 1))
-        #expect(DatePeriod(years: -1, months: -14).normalized == DatePeriod(years: -2, months: -2))
+        #expect(DateDuration(months: 12) != DateDuration(years: 1))
+        #expect(DateDuration(years: -1, months: -14).normalized == DateDuration(years: -2, months: -2))
     }
 }

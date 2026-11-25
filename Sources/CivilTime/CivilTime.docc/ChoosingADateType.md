@@ -23,7 +23,8 @@ a shop opens, the date in a passport. Store labels as civil values:
 | A day and a clock time, with no place yet | ``PlainDateTime`` |
 | A month of a year | ``PlainYearMonth`` |
 | A day that recurs every year | ``PlainMonthDay`` |
-| An amount like "3 months" | ``DatePeriod`` |
+| An amount like "3 months" | ``DateDuration`` |
+| An amount like "1 day and 12 hours" | ``DateTimeDuration`` |
 
 ### Why not store a label as a `Date`?
 

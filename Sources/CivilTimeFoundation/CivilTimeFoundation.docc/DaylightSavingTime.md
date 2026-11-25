@@ -55,6 +55,15 @@ always midnight, and `PlainDate.dateInterval(in:)` returns the whole day. A
 day can last 23, 23.5, 25 hours, or, for a date that was skipped entirely,
 no time at all.
 
+### Adding durations
+
+`Date.adding(_:in:disambiguation:)` adds a `DateTimeDuration` in a time zone.
+Its years, months and days move the wall-clock date, so the time of day stays
+the same, and the result goes back to an instant with the given
+disambiguation. Its hours, minutes and seconds are then added as exact time.
+On the day clocks spring forward, adding one day to noon gives noon the next
+day, 23 hours later, while adding 24 hours gives 13:00.
+
 ### Ranges
 
 `Range<PlainDateTime>.dateInterval(in:)` turns a wall-clock range, such as an

@@ -143,12 +143,12 @@ extension PlainDateTime {
         return result
     }
 
-    /// Returns the date-time moved by a ``DatePeriod``.
+    /// Returns the date-time moved by a ``DateDuration``.
     ///
     /// - Precondition: The result is between ``min`` and ``max``.
     @inlinable
-    public func adding(_ period: DatePeriod) -> PlainDateTime {
-        PlainDateTime(date: date.adding(period), time: time)
+    public func adding(_ duration: DateDuration) -> PlainDateTime {
+        PlainDateTime(date: date.adding(duration), time: time)
     }
 
     /// Returns the date-time moved by calendar and clock amounts, or `nil` if
@@ -175,11 +175,11 @@ extension PlainDateTime {
         return PlainDateTime(date: newDate, time: PlainTime(_uncheckedNanosecondOfDay: offset.nanosecondOfDay))
     }
 
-    /// Returns the date-time moved by a ``DatePeriod``, or `nil` if the result
+    /// Returns the date-time moved by a ``DateDuration``, or `nil` if the result
     /// would be outside ``min``…``max``. Safe to use with untrusted input.
     @inlinable
-    public func checkedAdding(_ period: DatePeriod) -> PlainDateTime? {
-        date.checkedAdding(period).map { PlainDateTime(date: $0, time: time) }
+    public func checkedAdding(_ duration: DateDuration) -> PlainDateTime? {
+        date.checkedAdding(duration).map { PlainDateTime(date: $0, time: time) }
     }
 }
 
@@ -191,7 +191,9 @@ extension PlainDateTime {
     /// - Precondition: The result is between ``min`` and ``max``.
     @inlinable
     public func adding(_ duration: Duration) -> PlainDateTime {
-        let (seconds, nanoseconds) = _secondsAndNanoseconds(of: duration)
+        guard let (seconds, nanoseconds) = _secondsAndNanoseconds(of: duration) else {
+            preconditionFailure("PlainDateTime arithmetic is out of range")
+        }
         let (days, remainder) = seconds.quotientAndRemainder(dividingBy: CivilMath.secondsPerDay)
         guard let wholeDays = Int(exactly: days) else {
             preconditionFailure("PlainDateTime arithmetic is out of range")

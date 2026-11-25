@@ -165,35 +165,35 @@ struct TextTests {
     }
 
     @Test("Period text", arguments: [
-        (DatePeriod(years: 1, months: 2, days: 10), "P1Y2M10D"),
-        (DatePeriod(), "P0D"),
-        (DatePeriod(months: -1), "-P1M"),
-        (DatePeriod(years: -1, days: -3), "-P1Y3D"),
-        (DatePeriod(years: 1, months: -2), "P1Y-2M"),
-        (DatePeriod(days: 400), "P400D"),
-        (DatePeriod(years: Int.min), "-P\(Int.min.magnitude)Y"),
+        (DateDuration(years: 1, months: 2, days: 10), "P1Y2M10D"),
+        (DateDuration(), "P0D"),
+        (DateDuration(months: -1), "-P1M"),
+        (DateDuration(years: -1, days: -3), "-P1Y3D"),
+        (DateDuration(years: 1, months: -2), "P1Y-2M"),
+        (DateDuration(days: 400), "P400D"),
+        (DateDuration(years: Int.min), "-P\(Int.min.magnitude)Y"),
     ])
-    func periodPrinting(period: DatePeriod, text: String) throws {
+    func periodPrinting(period: DateDuration, text: String) throws {
         #expect(period.description == text)
         if period.years != Int.min {
-            #expect(try DatePeriod(parsing: text) == period)
+            #expect(try DateDuration(parsing: text) == period)
         }
     }
 
     @Test("Period parsing")
     func periodParsing() throws {
-        #expect(try DatePeriod(parsing: "P2W") == DatePeriod(days: 14))
-        #expect(try DatePeriod(parsing: "P1Y2W3D") == DatePeriod(years: 1, days: 17))
-        #expect(try DatePeriod(parsing: "+P1D") == DatePeriod(days: 1))
-        #expect(try DatePeriod(parsing: "-P1Y-2M") == DatePeriod(years: -1, months: 2))
+        #expect(try DateDuration(parsing: "P2W") == DateDuration(days: 14))
+        #expect(try DateDuration(parsing: "P1Y2W3D") == DateDuration(years: 1, days: 17))
+        #expect(try DateDuration(parsing: "+P1D") == DateDuration(days: 1))
+        #expect(try DateDuration(parsing: "-P1Y-2M") == DateDuration(years: -1, months: 2))
         // 15 digits fit (even where Int has 32 bits they are rejected cleanly
         // rather than trapping); 16 never do.
-        #expect(DatePeriod("P999999999999999D") == (MemoryLayout<Int>.size == 8 ? DatePeriod(days: 999_999_999_999_999) : nil))
-        #expect(throws: CivilTimeParseError(kind: .valueOutOfRange, input: "P2000000000000000W", offset: 1, typeName: "DatePeriod")) {
-            try DatePeriod(parsing: "P2000000000000000W")
+        #expect(DateDuration("P999999999999999D") == (MemoryLayout<Int>.size == 8 ? DateDuration(days: 999_999_999_999_999) : nil))
+        #expect(throws: CivilTimeParseError(kind: .valueOutOfRange, input: "P2000000000000000W", offset: 1, typeName: "DateDuration")) {
+            try DateDuration(parsing: "P2000000000000000W")
         }
         for bad in ["P", "", "1Y", "P1H", "PT1H", "P1D1Y", "P1Y1Y", "P1.5Y", "PY", "P-", "P1Y ", "P1234567890123456D"] {
-            #expect(DatePeriod(bad) == nil, "\(bad)")
+            #expect(DateDuration(bad) == nil, "\(bad)")
         }
     }
 
@@ -210,11 +210,11 @@ struct TextTests {
             if PlainDateTime(dt.description) != dt { bad.append(dt.description) }
             if PlainYearMonth(d.yearMonth.description) != d.yearMonth { bad.append(d.yearMonth.description) }
             if PlainMonthDay(d.monthDay.description) != d.monthDay { bad.append(d.monthDay.description) }
-            let p = DatePeriod(
+            let p = DateDuration(
                 years: Int.random(in: -99_999...99_999, using: &generator),
                 months: Int.random(in: -99_999...99_999, using: &generator),
                 days: Int.random(in: -99_999...99_999, using: &generator))
-            if DatePeriod(p.description) != p { bad.append(p.description) }
+            if DateDuration(p.description) != p { bad.append(p.description) }
             if bad.count > 10 { break }
         }
         #expect(bad.isEmpty, "\(bad)")
@@ -228,7 +228,7 @@ struct TextTests {
             var starts: PlainDateTime
             var month: PlainYearMonth
             var anniversary: PlainMonthDay
-            var every: DatePeriod
+            var every: DateDuration
         }
         let event = Event(
             day: date(2024, 2, 29),
@@ -236,7 +236,7 @@ struct TextTests {
             starts: dateTime(2024, 2, 29, 18),
             month: PlainYearMonth(year: 2024, month: 2)!,
             anniversary: PlainMonthDay(month: 2, day: 29)!,
-            every: DatePeriod(years: 1)
+            every: DateDuration(years: 1)
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]

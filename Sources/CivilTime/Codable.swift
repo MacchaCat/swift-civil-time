@@ -87,13 +87,13 @@ extension PlainMonthDay: Codable {
     }
 }
 
-extension DatePeriod: Codable {
-    /// Decodes a period from an ISO 8601 duration string such as `"P1Y2M10D"`.
+extension DateDuration: Codable {
+    /// Decodes a duration from an ISO 8601 duration string such as `"P1Y2M10D"`.
     public init(from decoder: any Decoder) throws {
-        self = try _decodeISO8601(from: decoder) { text throws(CivilTimeParseError) in try DatePeriod(parsing: text) }
+        self = try _decodeISO8601(from: decoder) { text throws(CivilTimeParseError) in try DateDuration(parsing: text) }
     }
 
-    /// Encodes the period as an ISO 8601 duration string such as `"P1Y2M10D"`.
+    /// Encodes the duration as an ISO 8601 duration string such as `"P1Y2M10D"`.
     public func encode(to encoder: any Encoder) throws {
         try _encodeISO8601(description, to: encoder)
     }
@@ -118,6 +118,18 @@ extension ExtendedTime: Codable {
     }
 
     /// Encodes the extended time as a string such as `"26:30:00"`.
+    public func encode(to encoder: any Encoder) throws {
+        try _encodeISO8601(description, to: encoder)
+    }
+}
+
+extension DateTimeDuration: Codable {
+    /// Decodes a duration from an ISO 8601 string such as `"P1DT12H30M"`.
+    public init(from decoder: any Decoder) throws {
+        self = try _decodeISO8601(from: decoder) { text throws(CivilTimeParseError) in try DateTimeDuration(parsing: text) }
+    }
+
+    /// Encodes the duration as an ISO 8601 string such as `"P1DT12H30M"`.
     public func encode(to encoder: any Encoder) throws {
         try _encodeISO8601(description, to: encoder)
     }

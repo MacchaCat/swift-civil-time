@@ -29,6 +29,23 @@ struct _ByteWriter {
         appendDigits(UInt(value), width: width)
     }
 
+    /// Appends a 64-bit value, also on platforms where `UInt` is 32 bits.
+    @inlinable
+    mutating func appendDigits(_ value: UInt64, width: Int) {
+        var digits = 1
+        var rest = value / 10
+        while rest > 0 { digits += 1; rest /= 10 }
+        let total = Swift.max(digits, width)
+        var v = value
+        var i = count + total - 1
+        while i >= count {
+            buffer[i] = 0x30 + UInt8(truncatingIfNeeded: v % 10)
+            v /= 10
+            i -= 1
+        }
+        count += total
+    }
+
     /// Appends a value, zero-padded to at least `width` digits.
     @inlinable
     mutating func appendDigits(_ value: UInt, width: Int) {

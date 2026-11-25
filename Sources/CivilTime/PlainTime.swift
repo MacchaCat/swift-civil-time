@@ -167,9 +167,12 @@ extension PlainTime {
     /// Fractions below one nanosecond are dropped.
     @inlinable
     public func adding(_ duration: Duration) -> PlainTime {
-        let (seconds, nanoseconds) = _secondsAndNanoseconds(of: duration)
-        // Only the position within a day matters here, so reduce first; this
-        // keeps the values small enough for `Int` on 32-bit platforms too.
+        // Only the position within a day matters here, so drop whole days
+        // first. That also keeps durations too long for Int64 seconds, and
+        // values too large for `Int` on 32-bit platforms, out of the way.
+        let wholeDays = (duration / 86_400).components.seconds
+        let withinDays = duration - .seconds(86_400) * wholeDays
+        let (seconds, nanoseconds) = _secondsAndNanoseconds(of: withinDays)!
         return PlainTime(_uncheckedNanosecondOfDay: _offset(
             hours: 0, minutes: 0, seconds: Int(seconds % 86_400), nanoseconds: Int(nanoseconds)
         ).nanosecondOfDay)
@@ -184,10 +187,12 @@ extension PlainTime {
 }
 
 /// Splits a duration into whole seconds and nanoseconds, dropping any
-/// fraction of a nanosecond (rounding toward zero).
+/// fraction of a nanosecond (rounding toward zero), or returns `nil` if the
+/// whole seconds do not fit in `Int64`. (`Duration.components` traps then.)
 @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
 @inlinable
-func _secondsAndNanoseconds(of duration: Duration) -> (seconds: Int64, nanoseconds: Int64) {
+func _secondsAndNanoseconds(of duration: Duration) -> (seconds: Int64, nanoseconds: Int64)? {
+    guard duration < .seconds(Int64.max), duration > .seconds(Int64.min) else { return nil }
     let components = duration.components
     return (components.seconds, components.attoseconds / 1_000_000_000)
 }

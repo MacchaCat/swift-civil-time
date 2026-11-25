@@ -193,13 +193,11 @@ extension PlainTimeRange {
 }
 
 extension PlainDateTime {
-    /// Adds a nanosecond amount of up to a few days without converting it to
-    /// `Int`, which has only 32 bits on some platforms.
+    /// Adds a nanosecond amount with 64-bit arithmetic, returning `nil` when
+    /// the result is out of range.
     @inlinable
     func _checkedAdding(nanoseconds: Int64) -> PlainDateTime? {
-        let (seconds, remainder) = nanoseconds.quotientAndRemainder(dividingBy: CivilMath.nanosecondsPerSecond)
-        guard let wholeSeconds = Int(exactly: seconds) else { return nil }
-        return checkedAdding(seconds: wholeSeconds, nanoseconds: Int(remainder))
+        _checkedAdding(seconds: 0, nanoseconds: nanoseconds)
     }
 }
 
@@ -210,7 +208,7 @@ extension PlainTimeRange {
     /// nanosecond are dropped.
     @inlinable
     public init?(start: PlainTime, length: Duration) {
-        let (seconds, nanoseconds) = _secondsAndNanoseconds(of: length)
+        guard let (seconds, nanoseconds) = _secondsAndNanoseconds(of: length) else { return nil }
         let (scaled, o1) = seconds.multipliedReportingOverflow(by: CivilMath.nanosecondsPerSecond)
         let (total, o2) = scaled.addingReportingOverflow(nanoseconds)
         guard !o1, !o2 else { return nil }

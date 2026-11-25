@@ -11,7 +11,8 @@ Every civil type reads and writes one ISO 8601 form, strictly.
 | ``PlainDateTime`` | `2024-02-29T09:30:00` | `t` or a space instead of `T` |
 | ``PlainYearMonth`` | `2024-02` | |
 | ``PlainMonthDay`` | `--02-29` | `02-29` |
-| ``DatePeriod`` | `P1Y2M10D`, `P0D`, `-P1M`, `P1Y-2M` | `P2W` (as 14 days), `+P1D` |
+| ``DateDuration`` | `P1Y2M10D`, `P0D`, `-P1M`, `P1Y-2M` | `P2W` (as 14 days), `+P1D` |
+| ``DateTimeDuration`` | `P1DT12H30M`, `PT1.5S`, `PT0S`, `-PT0.5S`, `P1DT-2H` | every ``DateDuration`` form, `PT1,5S`, `PT-0.5S` |
 | ``PlainTimeRange`` | `21:00:00/03:00:00` | `21:00/03:00`, an extended end such as `18:00/24:00` or `18:00/29:00` |
 | ``ExtendedTime`` | `26:30:00`, `09:00:00` | `26:30`, hours of two to four digits |
 | ``ISOWeekDate`` | `2025-W01-1` | (not parsed) |

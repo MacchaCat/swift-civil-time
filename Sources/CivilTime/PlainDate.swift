@@ -298,7 +298,7 @@ extension PlainDate {
     ///
     /// The program stops with a runtime error, like integer overflow, if the
     /// result would be outside ``min``…``max``. When the amounts come from
-    /// outside your program, such as a decoded ``DatePeriod``, use
+    /// outside your program, such as a decoded ``DateDuration``, use
     /// ``checkedAdding(years:months:weeks:days:)`` instead.
     ///
     /// - Precondition: The result is between ``min`` and ``max``.
@@ -310,15 +310,15 @@ extension PlainDate {
         return result
     }
 
-    /// Returns the date moved by a ``DatePeriod``: years and months first,
+    /// Returns the date moved by a ``DateDuration``: years and months first,
     /// clamping the day to the end of the month, then days.
     ///
-    /// For a period from untrusted input, use ``checkedAdding(_:)``.
+    /// For a duration from untrusted input, use ``checkedAdding(_:)``.
     ///
     /// - Precondition: The result is between ``min`` and ``max``.
     @inlinable
-    public func adding(_ period: DatePeriod) -> PlainDate {
-        adding(years: period.years, months: period.months, days: period.days)
+    public func adding(_ duration: DateDuration) -> PlainDate {
+        adding(years: duration.years, months: duration.months, days: duration.days)
     }
 
     /// Returns the date moved by a number of years, months, weeks and days,
@@ -329,8 +329,8 @@ extension PlainDate {
     /// input.
     ///
     /// ```swift
-    /// let period = try JSONDecoder().decode(DatePeriod.self, from: body)
-    /// guard let due = start.checkedAdding(period) else { throw BadRequest() }
+    /// let duration = try JSONDecoder().decode(DateDuration.self, from: body)
+    /// guard let due = start.checkedAdding(duration) else { throw BadRequest() }
     /// ```
     @inlinable
     public func checkedAdding(years: Int = 0, months: Int = 0, weeks: Int = 0, days: Int = 0) -> PlainDate? {
@@ -350,11 +350,11 @@ extension PlainDate {
         return result
     }
 
-    /// Returns the date moved by a ``DatePeriod``, or `nil` if the result would
+    /// Returns the date moved by a ``DateDuration``, or `nil` if the result would
     /// be outside ``min``…``max``. Safe to use with untrusted input.
     @inlinable
-    public func checkedAdding(_ period: DatePeriod) -> PlainDate? {
-        checkedAdding(years: period.years, months: period.months, days: period.days)
+    public func checkedAdding(_ duration: DateDuration) -> PlainDate? {
+        checkedAdding(years: duration.years, months: duration.months, days: duration.days)
     }
 
     @inlinable
@@ -404,7 +404,7 @@ extension PlainDate {
     /// always lands on `other`:
     ///
     /// ```swift
-    /// start.adding(start.period(until: end)) == end   // always true
+    /// start.adding(start.dateDuration(until: end)) == end   // always true
     /// ```
     ///
     /// A month is counted when ``adding(years:months:weeks:days:)`` with that
@@ -413,25 +413,32 @@ extension PlainDate {
     ///
     /// ```swift
     /// let jan31 = PlainDate(year: 2024, month: 1, day: 31)!
-    /// jan31.period(until: PlainDate(year: 2024, month: 2, day: 29)!)  // P1M
-    /// jan31.period(until: PlainDate(year: 2024, month: 3, day: 1)!)   // P1M1D
+    /// jan31.dateDuration(until: PlainDate(year: 2024, month: 2, day: 29)!)  // P1M
+    /// jan31.dateDuration(until: PlainDate(year: 2024, month: 3, day: 1)!)   // P1M1D
     /// ```
     @inlinable
-    public func period(until other: PlainDate) -> DatePeriod {
+    public func dateDuration(until other: PlainDate) -> DateDuration {
         let months = _wholeMonths(until: other)
         let days = _addingMonths(months).days(until: other)
-        return DatePeriod(years: months / 12, months: months % 12, days: days)
+        return DateDuration(years: months / 12, months: months % 12, days: days)
+    }
+
+    /// The name of ``dateDuration(until:)`` before version 0.3.0.
+    @available(*, deprecated, renamed: "dateDuration(until:)")
+    @inlinable
+    public func period(until other: PlainDate) -> DateDuration {
+        dateDuration(until: other)
     }
 
     /// The number of whole months from this date to `other`, as counted by
-    /// ``period(until:)``; negative if `other` is earlier.
+    /// ``dateDuration(until:)``; negative if `other` is earlier.
     @inlinable
     public func months(until other: PlainDate) -> Int {
         _wholeMonths(until: other)
     }
 
     /// The number of whole years from this date to `other`, as counted by
-    /// ``period(until:)``; negative if `other` is earlier.
+    /// ``dateDuration(until:)``; negative if `other` is earlier.
     ///
     /// This is how old someone born on this date is on `other`. A person born
     /// on February 29 turns one year older on February 28 in common years.

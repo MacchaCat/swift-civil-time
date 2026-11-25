@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.0 (unreleased)
+
+- `DatePeriod` is now `DateDuration`, and `PlainDate.period(until:)` is now
+  `dateDuration(until:)`. The old names remain as deprecated aliases.
+  Parse errors name the type `DateDuration`.
+- `DateTimeDuration`: years, months and days plus hours, minutes, seconds and
+  nanoseconds, with the full ISO 8601 duration form (`P1DT12H30M`,
+  `PT1.5S`), `Codable`, `PlainDateTime.adding(_:)` and `checkedAdding(_:)`,
+  and `PlainDateTime.dateTimeDuration(until:)`, which always round-trips.
+  It converts from Swift's `Duration` on every platform, and back through
+  `exactDuration` when it has no calendar units.
+- `CivilTimeFoundation`: `Date.adding(_:in:disambiguation:)` and
+  `checkedAdding(_:in:disambiguation:)` add a `DateTimeDuration` in a time
+  zone, with calendar units on the wall clock and clock units as exact time,
+  as in Temporal.
+
 ## 0.2.0 (2026-11-23)
 
 - `PlainTimeRange`: a daily span of wall-clock time that may cross midnight,

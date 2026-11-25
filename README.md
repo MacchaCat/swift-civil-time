@@ -70,7 +70,8 @@ the same model to Swift and uses Temporal's names.
 | `PlainMonthDay` | `--02-29` | recurring yearly dates |
 | `PlainTimeRange` | `21:00:00/03:00:00` | daily spans such as opening hours, including ones past midnight |
 | `ExtendedTime` | `26:30:00` | times past 24:00, as in Japan's 30-hour clock and GTFS timetables |
-| `DatePeriod` | `P1Y2M10D` | "1 year, 2 months and 10 days" |
+| `DateDuration` | `P1Y2M10D` | "1 year, 2 months and 10 days" |
+| `DateTimeDuration` | `P1DT12H30M` | the same plus hours, minutes and seconds |
 | `Weekday` | `.monday` | ISO 8601 day of week |
 | `ISOWeekDate` | `2025-W01-1` | ISO week numbering |
 
@@ -99,7 +100,7 @@ PlainDate(year: 2024, month: 2, day: 29)!.adding(years: 1)   // 2025-02-28
 // Differences
 let born = PlainDate(year: 1990, month: 6, day: 15)!
 born.years(until: date)       // 34
-born.period(until: date)      // P34Y6M15D
+born.dateDuration(until: date)  // P34Y6M15D
 born.days(until: date)        // 12617
 
 // Ranges of dates
@@ -113,8 +114,35 @@ struct Event: Codable {
 }
 ```
 
-`period(until:)` always round-trips: `start.adding(start.period(until: end)) == end`
-for any two dates, and all of the period's parts have the same sign.
+`dateDuration(until:)` always round-trips: `start.adding(start.dateDuration(until: end)) == end`
+for any two dates, and all of the duration's parts have the same sign.
+
+## Durations
+
+There are three kinds of duration, for three kinds of question:
+
+| Type | Example | Length |
+|---|---|---|
+| `DateDuration` | `P1Y2M10D` | depends on the date: a month is 28 to 31 days |
+| `DateTimeDuration` | `P1DT12H30M` | calendar part as above, plus an exact clock part |
+| Swift's `Duration` | `.seconds(5400)` | always exact |
+
+```swift
+let stay = DateTimeDuration(days: 1, hours: 12, minutes: 30)
+PlainDateTime("2025-05-02T21:00")!.adding(stay)              // 2025-05-04T09:30:00
+
+let start = PlainDateTime("2024-01-31T22:00")!
+start.dateTimeDuration(until: PlainDateTime("2024-03-01T01:00")!)   // P1MT3H
+
+DateTimeDuration("PT1.5S")!.exactDuration                    // .milliseconds(1500)
+DateTimeDuration(days: 1).exactDuration                      // nil: a day is not always 24 hours
+DateTimeDuration(.seconds(90))                               // PT90S
+```
+
+The text form is the full ISO 8601 duration, with fractional seconds to the
+nanosecond. Equality compares the components, so `PT90M` and `PT1H30M` are
+different values even though they last equally long. `DateDuration` was
+called `DatePeriod` before 0.3.0; the old name still works but is deprecated.
 
 ## Ranges of dates and times
 
@@ -214,6 +242,17 @@ Temporal), or inspect every candidate with `possibleDates(in:)`. Edge cases
 are tested against real time-zone history, including a midnight that never
 happened (America/Santiago), a 30-minute shift (Australia/Lord_Howe) and a
 whole day that was skipped (Pacific/Apia, 2011-12-30).
+
+To add a duration to an instant in a time zone, the calendar part follows
+the wall clock and the clock part is exact, as in JavaScript's Temporal. One
+day later keeps the time of day; 24 hours later does not when the clocks
+change:
+
+```swift
+let noon = PlainDateTime("2024-03-09T12:00")!.date(in: newYork)
+noon.adding(DateTimeDuration(days: 1), in: newYork)     // 2024-03-10 12:00, 23 hours later
+noon.adding(DateTimeDuration(hours: 24), in: newYork)   // 2024-03-10 13:00
+```
 
 For display, use any `Date.FormatStyle`; the civil fields are shown as they
 are, whatever the device's time zone:
