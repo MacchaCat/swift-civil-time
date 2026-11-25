@@ -317,7 +317,7 @@ code is in [Benchmarks](Benchmarks/Sources/Benchmarks/main.swift); run it with
 ```swift
 // Package.swift
 dependencies: [
-    .package(url: "https://github.com/MacchaCat/swift-civil-time.git", from: "0.2.0"),
+    .package(url: "https://github.com/MacchaCat/swift-civil-time.git", from: "0.3.0"),
 ],
 targets: [
     .target(name: "MyTarget", dependencies: [

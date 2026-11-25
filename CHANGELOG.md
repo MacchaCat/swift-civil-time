@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.0 (unreleased)
+## 0.3.0 (2026-11-25)
 
 - `DatePeriod` is now `DateDuration`, and `PlainDate.period(until:)` is now
   `dateDuration(until:)`. The old names remain as deprecated aliases.
